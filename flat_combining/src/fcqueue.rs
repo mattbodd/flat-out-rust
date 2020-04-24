@@ -12,11 +12,11 @@ const MAX_COMBINING_ROUNDS: u64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
 
 struct CombiningNode {
-    is_linked: mut bool,
-    last_request_timestamp: mut u64,
+    is_linked: bool,
+    last_request_timestamp: u64,
     next: Option<Box<CombiningNode>>,
-    is_request_valid: mut bool,
-    is_consumer: mut bool,
+    is_request_valid: bool,
+    is_consumer: bool,
     item: Option<i32>,
 }
 
@@ -231,7 +231,7 @@ impl FCQueue {
             comb_node = Some(*cn);
         });
 
-        let comb_node: CombiningNode = match comb_node {
+        let mut comb_node: CombiningNode = match comb_node {
             Some(cn) => cn,
             None => panic!("No combining node found in `enqueue`"),
         };
@@ -241,7 +241,7 @@ impl FCQueue {
 
         comb_node.is_request_valid = true;
 
-        self.wait_until_fulfilled(&comb_node);
+        self.wait_until_fulfilled(&mut comb_node);
 
         true
     }
@@ -253,7 +253,7 @@ impl FCQueue {
             comb_node = Some(*cn);
         });
 
-        let comb_node: CombiningNode = match comb_node {
+        let mut comb_node: CombiningNode = match comb_node {
             Some(cn) => cn,
             None => panic!("No combining node found in `enqueue`"),
         };
@@ -262,7 +262,7 @@ impl FCQueue {
 
         comb_node.is_request_valid = true;
 
-        self.wait_until_fulfilled(&comb_node);
+        self.wait_until_fulfilled(&mut comb_node);
 
         comb_node.item.unwrap()
     }
