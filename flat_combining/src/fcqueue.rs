@@ -1,7 +1,7 @@
-use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
-use std::thread;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::thread;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
@@ -58,15 +58,13 @@ struct FCQueue {
     comb_list_head: Option<CombiningNode>,
     queue_head: Option<QueueFatNode>,
     queue_tail: Option<QueueFatNode>,
-    
 }
 
 impl FCQueue {
-
-	//maybe this works??
-	thread_local! {
-		static combining_node: CombiningNode = CombiningNode::new();
-	}
+    //maybe this works??
+    thread_local! {
+        static combining_node: CombiningNode = CombiningNode::new();
+    }
 
     fn new() -> FCQueue {
         FCQueue {
@@ -108,13 +106,15 @@ impl FCQueue {
                     let next_node: CombiningNode = &some_curr_comb_node.next;
 
                     // Definitely an illegal second comparison
-                    if check_timestamps &&
-                        (!std::ptr::eq(curr_comb_node, &self.comb_list_head)) &&
-                        ((local_current_timestamp - curr_comb_node.borrow().last_request_timestamp())
-                         > COMBINING_NODE_TIMEOUT) {
-                            last_combining_node.next = next_node;
-                            some_curr_comb_node.is_linked = false;
-                        }
+                    if check_timestamps
+                        && (!std::ptr::eq(curr_comb_node, &self.comb_list_head))
+                        && ((local_current_timestamp
+                            - curr_comb_node.borrow().last_request_timestamp())
+                            > COMBINING_NODE_TIMEOUT)
+                    {
+                        last_combining_node.next = next_node;
+                        some_curr_comb_node.is_linked = false;
+                    }
 
                     some_curr_comb_node = next_node;
                     continue;
@@ -128,10 +128,9 @@ impl FCQueue {
                     let consumer_satisfied: bool = false;
 
                     while let Some(some_local_queue_head) = &mut local_queue_head {
-                    	if(consumer_satisfied)
-                    	{
-                    		break;
-                    	}
+                        if (consumer_satisfied) {
+                            break;
+                        }
                         let head_next: QueueFatNode = local_queue_head.next;
 
                         if (head_next.items_left == 0) {
@@ -153,14 +152,15 @@ impl FCQueue {
                         some_curr_comb_node.item = None;
                     }
                 } else {
-                    self.combined_pushed_items[num_pushed_items] = some_curr_comb_node.item;
+                    self.combined_pushed_items[num_pushed_items] =
+                        some_curr_comb_node.item.unwrap();
                     num_pushed_items += 1;
                 }
 
                 some_curr_comb_node.is_request_valid = false;
 
                 last_combining_node = curr_comb_node;
-                curr_comb_node = curr_comb_node.next;
+                curr_comb_node = curr_comb_node.unwrap().next;
             }
 
             if num_pushed_items > 0 {
@@ -171,8 +171,11 @@ impl FCQueue {
                     new_node.items.push(an_item)
                 }
                 new_node.next = None;
-                self.queue_tail.next = new_node;
-                self.queue_tail = new_node;
+
+                if let Some(some_queue_tail) = &mut self.queue_tail {
+                    (*some_queue_tail).next = Some(new_node);
+                    *some_queue_tail = new_node;
+                }
             }
 
             combining_round += 1;
@@ -186,11 +189,11 @@ impl FCQueue {
 
     fn link_in_combining(&self, cn: CombiningNode) {
         loop {
-            let curr_head: CombiningNode = self.comb_list_head;
-            cn.next = &curr_head;
+            let curr_head: Option<CombiningNode> = self.comb_list_head;
+            cn.next = curr_head;
 
             // Unsure about this
-            if std::ptr::eq(self.comb_list_head, curr_head) {
+            if std::ptr::eq(&self.comb_list_head.unwrap(), &curr_head.unwrap()) {
                 // CAS and conditionally return
             }
         }
@@ -200,41 +203,39 @@ impl FCQueue {
         let mut rounds = 0;
 
         loop {
-            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) &&
-                !comb_node.is_linked {
-                    comb_node.is_linked = true;
-                    self.link_in_combining(comb_node);
-                }
+            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) && !comb_node.is_linked {
+                comb_node.is_linked = true;
+                self.link_in_combining(comb_node);
+            }
 
-            if self.fc_lock.load() == 0 {
-                let cae: Result<usize, usize> = self.fc_lock.compare_and_swap(0, 1,
-                                                                         Ordering::Acquire,
-                                                                         Ordering::Relaxed);
+            if self.fc_lock.load(Ordering::Relaxed) == 0 {
+                let cae: Result<usize, usize> =
+                    self.fc_lock
+                        .compare_exchange(0, 1, Ordering::Acquire, Ordering::Relaxed);
                 if cae.is_ok() {
                     self.doFlatCombining(comb_node);
-                    self.fc_lock.set(0);
+                    self.fc_lock.store(0, Ordering::Relaxed);
                 }
 
                 if !comb_node.is_request_valid {
                     return;
                 }
 
-                rounds+=1;
+                rounds += 1;
             }
         }
-        
     }
 
     fn enqueue(&self, val: i32) -> bool {
         // Combining node should be a thread local variable
         let comb_node: CombiningNode = self.combining_node;
         comb_node.is_consumer = false;
-        comb_node.item = val;
+        comb_node.item = Some(val);
 
         comb_node.is_request_valid = true;
 
         self.wait_until_fulfilled(comb_node);
-        
+
         true
     }
 
@@ -246,10 +247,9 @@ impl FCQueue {
         comb_node.is_request_valid = true;
 
         self.wait_until_fulfilled(comb_node);
-        
+
         comb_node.item.unwrap()
     }
-    
 }
 
 // Unsure how to implement:
