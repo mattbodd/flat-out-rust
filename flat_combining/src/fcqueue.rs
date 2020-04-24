@@ -9,7 +9,7 @@ const MAX_THREADS: usize = 512;
 const COMBINING_NODE_TIMEOUT: u64 = 10000;
 const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: u64 = 100;
 const MAX_COMBINING_ROUNDS: u64 = 32;
-const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: i64 = 100;
+const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
 
 struct CombiningNode {
     is_linked: bool,
@@ -25,7 +25,7 @@ impl CombiningNode {
         // TODO: How to initiailize additional fields
         CombiningNode {
             is_linked: false,
-            last_request_timestamp: (-1),
+            last_request_timestamp: 0,
             next: None,
             is_request_valid: false,
             is_consumer: false,
@@ -54,7 +54,7 @@ impl QueueFatNode {
 struct FCQueue {
     fc_lock: AtomicUsize,
     combined_pushed_items: Vec<i32>,
-    current_timestamp: i64,
+    current_timestamp: u64,
     combining_node: CombiningNode,
     comb_list_head: Option<CombiningNode>,
     queue_head: Option<QueueFatNode>,
@@ -82,12 +82,12 @@ impl FCQueue {
     }
 
     fn doFlatCombining(&mut self, combiner_thread_node: CombiningNode) {
-        let combining_round: i64 = 0;
+        let combining_round: u64 = 0;
         let num_pushed_items: usize = 0;
         let curr_comb_node: Option<CombiningNode> = None;
         let last_combining_node: Option<CombiningNode> = None;
         self.current_timestamp += 1;
-        let local_current_timestamp: i64 = self.current_timestamp;
+        let local_current_timestamp: u64 = self.current_timestamp;
         let local_queue_head: Option<QueueFatNode> = &self.queue_head;
 
         let check_timestamps: bool =
