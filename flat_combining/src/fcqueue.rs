@@ -62,14 +62,20 @@ struct FCQueue {
 }
 
 impl FCQueue {
+
+	//maybe this works??
+	thread_local! {
+		static combining_node: CombiningNode = CombiningNode::new();
+	}
+
     fn new() -> FCQueue {
         FCQueue {
             fc_lock: AtomicUsize::new(0),
             combined_pushed_items: Vec::with_capacity(MAX_THREADS),
             // current_timestamp: ?,
-            thread_local! {
-                combining_node: CombiningNode::new(),
-            }
+            // thread_local! {
+            //     combining_node: CombiningNode::new(),
+            // }
             comb_list_head: Some(CombiningNode::new()),
             queue_head: Some(QueueFatNode::new()),
             queue_tail: &self.queue_head,
@@ -200,8 +206,8 @@ impl FCQueue {
                     self.link_in_combining(comb_node);
                 }
 
-            if fc_lock.load() == 0 {
-                let cae: Result<usize, usize> = fc_lock.compare_and_swap(0, 1,
+            if self.fc_lock.load() == 0 {
+                let cae: Result<usize, usize> = self.fc_lock.compare_and_swap(0, 1,
                                                                          Ordering::Acquire,
                                                                          Ordering::Relaxed);
                 if cae.is_ok() {
