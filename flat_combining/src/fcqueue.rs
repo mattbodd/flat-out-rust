@@ -12,11 +12,11 @@ const MAX_COMBINING_ROUNDS: u64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
 
 struct CombiningNode {
-    is_linked: bool,
-    last_request_timestamp: u64,
+    is_linked: mut bool,
+    last_request_timestamp: mut u64,
     next: Option<Box<CombiningNode>>,
-    is_request_valid: bool,
-    is_consumer: bool,
+    is_request_valid: mut bool,
+    is_consumer: mut bool,
     item: Option<i32>,
 }
 
@@ -78,7 +78,7 @@ impl FCQueue {
         }
     }
 
-    fn doFlatCombining(&mut self, combiner_thread_node: CombiningNode) {
+    fn doFlatCombining(&mut self, combiner_thread_node: &CombiningNode) {
         let combining_round: u64 = 0;
         let num_pushed_items: usize = 0;
         let curr_comb_node: Option<Box<CombiningNode>> = None;
@@ -185,7 +185,7 @@ impl FCQueue {
         }
     }
 
-    fn link_in_combining(&self, cn: CombiningNode) {
+    fn link_in_combining(&self, cn: &CombiningNode) {
         loop {
             let curr_head: Option<Box<CombiningNode>> = self.comb_list_head;
             cn.next = curr_head;
@@ -197,7 +197,7 @@ impl FCQueue {
         }
     }
 
-    fn wait_until_fulfilled(&self, comb_node: CombiningNode) {
+    fn wait_until_fulfilled(&self, comb_node: &CombiningNode) {
         let mut rounds = 0;
 
         loop {
@@ -226,31 +226,43 @@ impl FCQueue {
 
     fn enqueue(&self, val: i32) -> bool {
         // Combining node should be a thread local variable
-        let comb_node: CombiningNode;
+        let mut comb_node: Option<CombiningNode> = None;
         FCQueue::combining_node.with(|cn| {
-            comb_node = *cn;
+            comb_node = Some(*cn);
         });
+
+        let comb_node: CombiningNode = match comb_node {
+            Some(cn) => cn,
+            None => panic!("No combining node found in `enqueue`"),
+        };
+
         comb_node.is_consumer = false;
         comb_node.item = Some(val);
 
         comb_node.is_request_valid = true;
 
-        self.wait_until_fulfilled(comb_node);
+        self.wait_until_fulfilled(&comb_node);
 
         true
     }
 
     fn dequeue(&self) -> i32 {
         // Combining node should be a thread local variable
-        let comb_node;
+        let mut comb_node: Option<CombiningNode> = None;
         FCQueue::combining_node.with(|cn| {
-            comb_node = *cn;
+            comb_node = Some(*cn);
         });
+
+        let comb_node: CombiningNode = match comb_node {
+            Some(cn) => cn,
+            None => panic!("No combining node found in `enqueue`"),
+        };
+
         comb_node.is_consumer = true;
 
         comb_node.is_request_valid = true;
 
-        self.wait_until_fulfilled(comb_node);
+        self.wait_until_fulfilled(&comb_node);
 
         comb_node.item.unwrap()
     }
