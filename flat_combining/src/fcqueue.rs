@@ -3,6 +3,7 @@
 use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
 use std::thread;
+use std::cmp::Ordering;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
@@ -72,8 +73,8 @@ impl FCQueue {
                 combining_node: CombiningNode::new();
             }
             comb_list_head: Some(CombiningNode::new());
-            queue_head: Some(QueueFatNode::new()),
-            queue_tail: &queue_head,
+            self.queue_head: Some(QueueFatNode::new()),
+            queue_tail: &Self.queue_head,
         }
     }
 
@@ -122,7 +123,11 @@ impl FCQueue {
                 if some_curr_comb_node.is_consumer {
                     let consumer_satisfied: bool = false;
 
-                    while Some(some_local_queue_head) && !consumer_satisfied {
+                    while let Some(some_local_queue_head) = &mut local_queue_head {
+                    	if(consumer_satisfied)
+                    	{
+                    		break;
+                    	}
                         let head_next: QueueFatNode = local_queue_head.next;
 
                         if (head_next.items_left == 0) {
@@ -136,7 +141,7 @@ impl FCQueue {
 
                     if !consumer_satisfied && (num_pushed_items > 0) {
                         num_pushed_items -= 1;
-                        some_curr_comb_node.item = combined_pushed_items[num_pushed_items];
+                        some_curr_comb_node.item = self.combined_pushed_items[num_pushed_items];
                         consumer_satisfied = true;
                     }
 
@@ -144,7 +149,7 @@ impl FCQueue {
                         some_curr_comb_node.item = None;
                     }
                 } else {
-                    combined_pushed_items[num_pushed_items] = some_curr_comb_node.item;
+                    self.combined_pushed_items[num_pushed_items] = some_curr_comb_node.item;
                     num_pushed_items += 1;
                 }
 
@@ -158,15 +163,15 @@ impl FCQueue {
                 let new_node = QueueFatNode::new();
                 new_node.items_left = num_pushed_items;
                 new_node.items = Vec::with_capacity(num_pushed_items);
-                for an_item in combiend_pushed_items {
+                for an_item in self.combined_pushed_items {
                     new_node.items.push(an_item)
                 }
                 new_node.next = None;
-                queue_tail.next = new_node;
-                queue_tail = new_node;
+                self.queue_tail.next = new_node;
+                self.queue_tail = new_node;
             }
 
-            combining_rounds += 1;
+            combining_round += 1;
             if !have_work || combining_rounds >= MAX_COMBINING_ROUNDS {
                 queue_head = local_queue_head;
 
@@ -188,7 +193,7 @@ impl FCQueue {
     }
 
     fn wait_until_fulfilled(&self, comb_node: CombiningNode) {
-        int rounds = 0;
+        let mut rounds = 0;
 
         loop {
             if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) &&
@@ -210,7 +215,7 @@ impl FCQueue {
                     return;
                 }
 
-                rounds++;
+                rounds+=1;
             }
         }
         
