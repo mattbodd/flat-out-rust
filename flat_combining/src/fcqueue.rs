@@ -26,10 +26,10 @@ impl CombiningNode {
         // TODO: How to initiailize additional fields
         CombiningNode {
             is_linked: false,
-            // last_request_timestamp: ?,
+            last_request_timestamp: -1,
             next: None,
             is_request_valid: false,
-            // is_comsume: ?,
+            is_comsume: false,
             item: None,
         }
     }
@@ -70,11 +70,11 @@ impl FCQueue {
             combined_pushed_items: Vec::with_capacity(MAX_THREADS),
             // current_timestamp: ?,
             thread_local! {
-                combining_node: CombiningNode::new();
+                combining_node: CombiningNode::new(),
             }
-            comb_list_head: Some(CombiningNode::new());
-            self.queue_head: Some(QueueFatNode::new()),
-            queue_tail: &Self.queue_head,
+            comb_list_head: Some(CombiningNode::new()),
+            queue_head: Some(QueueFatNode::new()),
+            queue_tail: &self.queue_head,
         }
     }
 
@@ -182,11 +182,11 @@ impl FCQueue {
 
     fn link_in_combining(&self, cn: CombiningNode) {
         loop {
-            let curr_head: CombiningNode = comb_list_head;
+            let curr_head: CombiningNode = self.comb_list_head;
             cn.next = &curr_head;
 
             // Unsure about this
-            if std::ptr::eq(comb_list_head, curr_head) {
+            if std::ptr::eq(self.comb_list_head, curr_head) {
                 // CAS and conditionally return
             }
         }
@@ -199,7 +199,7 @@ impl FCQueue {
             if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) &&
                 !comb_node.is_linked {
                     comb_node.is_linked = true;
-                    link_in_combining(comb_node);
+                    self.link_in_combining(comb_node);
                 }
 
             if fc_lock.load() == 0 {
@@ -208,7 +208,7 @@ impl FCQueue {
                                                                          Ordering::Relaxed);
                 if cae.is_ok() {
                     self.doFlatCombining(comb_node);
-                    fc_lock.set(0);
+                    self.fc_lock.set(0);
                 }
 
                 if !comb_node.is_request_valid {
@@ -225,11 +225,11 @@ impl FCQueue {
         // Combining node should be a thread local variable
         let comb_node: CombiningNode = self.combining_node;
         comb_node.is_consumer = false;
-        comb_node.item = value;
+        comb_node.item = val;
 
         comb_node.is_request_valid = true;
 
-        wait_until_fulfilled(comb_node);
+        self.wait_until_fulfilled(comb_node);
         
         true
     }
@@ -241,7 +241,7 @@ impl FCQueue {
 
         comb_node.is_request_valid = true;
 
-        wait_until_fulfilled(comb_node);
+        self.wait_until_fulfilled(comb_node);
         
         comb_node.item.unwrap()
     }
