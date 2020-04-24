@@ -1,4 +1,4 @@
-// Time-stamp: <2020-04-24 15:46:01 (mbodd)>
+// Time-stamp: <2020-04-24 16:12:50 (mbodd)>
 
 use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
@@ -11,13 +11,13 @@ const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: i64 = 100;
 const MAX_COMBINING_ROUNDS: i64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: i64 = 100;
 
-struct CombiningNode<T> {
+struct CombiningNode {
     is_linked: bool,
     last_request_timestamp: i64,
     next: Option<CombiningNode>,
     is_request_valid: bool,
     is_consume: bool,
-    item: Option<T>,
+    item: Option<i32>,
 }
 
 impl CombiningNode {
@@ -34,8 +34,8 @@ impl CombiningNode {
     }
 }
 
-struct QueueFatNode<T> {
-    items: Vec<T>,
+struct QueueFatNode {
+    items: Vec<i32>,
     items_left: i64,
     next: Option<QueueFatNode>,
 }
@@ -51,14 +51,14 @@ impl QueueFatNode {
     }
 }
 
-struct FCQueue<T> {
+struct FCQueue {
     fc_lock: AtomicUsize,
-    combined_pushed_items: Vec<T>,
+    combined_pushed_items: Vec<i32>,
     current_timestamp: u64,
     combining_node: CombiningNode,
-    comb_list_head: AtomicCell<Option<CombiningNode>>,
-    queue_head: AtomicCell<Option<QueueFatNode>>,
-    queue_tail: AtomicCell<Option<QueueFatNode>>,
+    comb_list_head: Option<CombiningNode>,
+    queue_head: Option<QueueFatNode>,
+    queue_tail: Option<QueueFatNode>,
     
 }
 
@@ -71,8 +71,8 @@ impl FCQueue {
             thread_local! {
                 combining_node: CombiningNode::new();
             }
-            comb_list_head: AtomicCell::new(Some(CombiningNode::new()));
-            queue_head: AtomicCell::new(Some(QueueFatNode::new())),
+            comb_list_head: Some(CombiningNode::new());
+            queue_head: Some(QueueFatNode::new()),
             queue_tail: &queue_head,
         }
     }
@@ -80,11 +80,11 @@ impl FCQueue {
     fn doFlatCombining(&mut self, combiner_thread_node: CombiningNode) {
         let combining_round: u64 = 0;
         let num_pushed_items: u64 = 0;
-        let curr_comb_node: AtomicCell<Option<CombiningNode>> = None;
-        let last_combining_node: AtomicCell<Option<CombiningNode>> = None;
+        let curr_comb_node: Option<CombiningNode> = None;
+        let last_combining_node: Option<CombiningNode> = None;
 
         let local_current_timestamp: u64 = self.current_timestamp += 1;
-        let local_queue_head: AtomicCell<Option<QueueFatNode>> = &self.queue_head;
+        let local_queue_head: Option<QueueFatNode> = &self.queue_head;
 
         let check_timestamps: bool =
             (local_current_timestamp % COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY == 0);
@@ -216,7 +216,7 @@ impl FCQueue {
         
     }
 
-    fn enqueue(&self, val: T) -> bool {
+    fn enqueue(&self, val: i32) -> bool {
         // Combining node should be a thread local variable
         let comb_node: CombiningNode = self.combining_node;
         comb_node.is_consumer = false;
