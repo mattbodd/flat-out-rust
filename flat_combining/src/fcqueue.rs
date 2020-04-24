@@ -1,4 +1,4 @@
-// Time-stamp: <2020-04-24 16:12:50 (mbodd)>
+// Time-stamp: <2020-04-24 16:37:51 (mbodd)>
 
 use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
@@ -16,7 +16,7 @@ struct CombiningNode {
     last_request_timestamp: i64,
     next: Option<CombiningNode>,
     is_request_valid: bool,
-    is_consume: bool,
+    is_consumer: bool,
     item: Option<i32>,
 }
 
@@ -36,7 +36,7 @@ impl CombiningNode {
 
 struct QueueFatNode {
     items: Vec<i32>,
-    items_left: i64,
+    items_left: usize,
     next: Option<QueueFatNode>,
 }
 
@@ -79,7 +79,7 @@ impl FCQueue {
 
     fn doFlatCombining(&mut self, combiner_thread_node: CombiningNode) {
         let combining_round: u64 = 0;
-        let num_pushed_items: u64 = 0;
+        let num_pushed_items: usize = 0;
         let curr_comb_node: Option<CombiningNode> = None;
         let last_combining_node: Option<CombiningNode> = None;
 
@@ -229,7 +229,7 @@ impl FCQueue {
         true
     }
 
-    fn dequeue(&self) {
+    fn dequeue(&self) -> i32 {
         // Combining node should be a thread local variable
         let comb_node = self.combining_node;
         comb_node.is_consumer = true;
@@ -238,7 +238,7 @@ impl FCQueue {
 
         wait_until_fulfilled(comb_node);
         
-        comb_node.item
+        comb_node.item.unwrap()
     }
     
 }
