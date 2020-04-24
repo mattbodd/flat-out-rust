@@ -104,13 +104,12 @@ impl FCQueue {
             // At this point, `some_curr_comb_node` is a *copied* version
             while let Some(some_curr_comb_node) = &mut curr_comb_node {
                 if !some_curr_comb_node.is_request_valid {
-                    let next_node: Option<CombiningNode> = some_curr_comb_node.next;
+                    let next_node: CombiningNode = some_curr_comb_node.next.unwrap();
 
                     // Definitely an illegal second comparison
                     if check_timestamps
-                        && (!std::ptr::eq(&curr_comb_node, &self.comb_list_head))
-                        && ((local_current_timestamp
-                            - curr_comb_node.borrow().last_request_timestamp())
+                        && (!std::ptr::eq(&curr_comb_node.unwrap(), &self.comb_list_head.unwrap()))
+                        && ((local_current_timestamp - some_curr_comb_node.last_request_timestamp)
                             > COMBINING_NODE_TIMEOUT)
                     {
                         last_combining_node.unwrap().next = Some(next_node);
