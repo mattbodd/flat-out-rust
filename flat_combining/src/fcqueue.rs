@@ -1,12 +1,13 @@
 use crossbeam_utils::atomic::AtomicCell;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::rc::Rc;
 use std::thread;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
-const COMBINING_NODE_TIMEOUT: u64 = 10000;
-const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: u64 = 100;
+const COMBINING_NODE_TIMEOUT: i64 = 10000;
+const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: i64 = 100;
 const MAX_COMBINING_ROUNDS: i64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: i64 = 100;
 
@@ -24,7 +25,7 @@ impl CombiningNode {
         // TODO: How to initiailize additional fields
         CombiningNode {
             is_linked: false,
-            last_request_timestamp: -1,
+            last_request_timestamp: (-1),
             next: None,
             is_request_valid: false,
             is_consumer: false,
@@ -53,7 +54,7 @@ impl QueueFatNode {
 struct FCQueue {
     fc_lock: AtomicUsize,
     combined_pushed_items: Vec<i32>,
-    current_timestamp: u64,
+    current_timestamp: i64,
     combining_node: CombiningNode,
     comb_list_head: Option<CombiningNode>,
     queue_head: Option<QueueFatNode>,
@@ -81,12 +82,12 @@ impl FCQueue {
     }
 
     fn doFlatCombining(&mut self, combiner_thread_node: CombiningNode) {
-        let combining_round: u64 = 0;
+        let combining_round: i64 = 0;
         let num_pushed_items: usize = 0;
         let curr_comb_node: Option<CombiningNode> = None;
         let last_combining_node: Option<CombiningNode> = None;
         self.current_timestamp += 1;
-        let local_current_timestamp: u64 = self.current_timestamp;
+        let local_current_timestamp: i64 = self.current_timestamp;
         let local_queue_head: Option<QueueFatNode> = &self.queue_head;
 
         let check_timestamps: bool =
@@ -103,11 +104,11 @@ impl FCQueue {
             // At this point, `some_curr_comb_node` is a *copied* version
             while let Some(some_curr_comb_node) = &mut curr_comb_node {
                 if !some_curr_comb_node.is_request_valid {
-                    let next_node: CombiningNode = &some_curr_comb_node.next;
+                    let next_node: Option<CombiningNode> = some_curr_comb_node.next;
 
                     // Definitely an illegal second comparison
                     if check_timestamps
-                        && (!std::ptr::eq(curr_comb_node, &self.comb_list_head))
+                        && (!std::ptr::eq(&curr_comb_node, &self.comb_list_head))
                         && ((local_current_timestamp
                             - curr_comb_node.borrow().last_request_timestamp())
                             > COMBINING_NODE_TIMEOUT)
