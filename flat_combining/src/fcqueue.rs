@@ -1,4 +1,4 @@
-// Time-stamp: <2020-04-24 15:27:36 (mbodd)>
+// Time-stamp: <2020-04-24 15:46:01 (mbodd)>
 
 use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
@@ -13,7 +13,7 @@ const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: i64 = 100;
 
 struct CombiningNode<T> {
     is_linked: bool,
-    last_request_timestamp: i64,,
+    last_request_timestamp: i64,
     next: Option<CombiningNode>,
     is_request_valid: bool,
     is_consume: bool,
