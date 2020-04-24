@@ -1,4 +1,4 @@
-// Time-stamp: <2020-04-24 16:41:40 (mbodd)>
+// Time-stamp: <2020-04-24 17:00:15 (mbodd)>
 
 use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
@@ -7,10 +7,10 @@ use std::sync::atomic::Ordering;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
-const COMBINING_NODE_TIMEOUT: i64 = 10000;
-const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: i64 = 100;
-const MAX_COMBINING_ROUNDS: i64 = 32;
-const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: i64 = 100;
+const COMBINING_NODE_TIMEOUT: u64 = 10000;
+const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: u64 = 100;
+const MAX_COMBINING_ROUNDS: u64 = 32;
+const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
 
 struct CombiningNode {
     is_linked: bool,
@@ -167,8 +167,11 @@ impl FCQueue {
                     new_node.items.push(an_item)
                 }
                 new_node.next = None;
-                self.queue_tail.next = new_node;
-                self.queue_tail = new_node;
+
+                if let Some(some_queue_tail) = &mut self.queue_tail {
+                    some_queue_tail.next = Some(new_node);
+                    *some_queue_tail = new_node;
+                }
             }
 
             combining_round += 1;
@@ -182,11 +185,11 @@ impl FCQueue {
 
     fn link_in_combining(&self, cn: CombiningNode) {
         loop {
-            let curr_head: CombiningNode = comb_list_head;
-            cn.next = &curr_head;
+            let curr_head: Option<CombiningNode> = self.comb_list_head;
+            cn.next = curr_head;
 
             // Unsure about this
-            if std::ptr::eq(comb_list_head, curr_head) {
+            if std::ptr::eq(comb_list_head, &(curr_head.unwrap())) {
                 // CAS and conditionally return
             }
         }
