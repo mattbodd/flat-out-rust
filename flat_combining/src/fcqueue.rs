@@ -3,7 +3,7 @@
 use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
 use std::thread;
-use std::cmp::Ordering;
+use std::sync::atomic::Ordering;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
@@ -172,8 +172,8 @@ impl FCQueue {
             }
 
             combining_round += 1;
-            if !have_work || combining_rounds >= MAX_COMBINING_ROUNDS {
-                queue_head = local_queue_head;
+            if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
+                self.queue_head = local_queue_head;
 
                 return;
             }
@@ -182,7 +182,7 @@ impl FCQueue {
 
     fn link_in_combining(&self, cn: CombiningNode) {
         loop {
-            let curr_head: Combining_node = comb_list_head;
+            let curr_head: CombiningNode = comb_list_head;
             cn.next = &curr_head;
 
             // Unsure about this
