@@ -1,7 +1,7 @@
 [package]
 name = "flat_combining"
 version = "0.1.0"
-authors = ["MattSwanny <swanson.matthew@pacbell.net>"]
+authors = ["MattSwanny <swanson.matthew@pacbell.net>", "Matthew Boddewyn <mboddewy@u.rochester.edu>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
