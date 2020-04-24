@@ -6,14 +6,14 @@ use std::thread;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
-const COMBINING_NODE_TIMEOUT: i64 = 10000;
-const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: i64 = 100;
-const MAX_COMBINING_ROUNDS: i64 = 32;
+const COMBINING_NODE_TIMEOUT: u64 = 10000;
+const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: u64 = 100;
+const MAX_COMBINING_ROUNDS: u64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: i64 = 100;
 
 struct CombiningNode {
     is_linked: bool,
-    last_request_timestamp: i64,
+    last_request_timestamp: u64,
     next: Option<CombiningNode>,
     is_request_valid: bool,
     is_consumer: bool,
@@ -98,7 +98,7 @@ impl FCQueue {
         loop {
             num_pushed_items = 0;
             curr_comb_node = &self.comb_list_head;
-            last_combining_node = curr_comb_node.load();
+            last_combining_node = curr_comb_node;
             have_work = false;
 
             // At this point, `some_curr_comb_node` is a *copied* version
@@ -113,11 +113,11 @@ impl FCQueue {
                             - curr_comb_node.borrow().last_request_timestamp())
                             > COMBINING_NODE_TIMEOUT)
                     {
-                        last_combining_node.next = next_node;
+                        last_combining_node.unwrap().next = Some(next_node);
                         some_curr_comb_node.is_linked = false;
                     }
 
-                    some_curr_comb_node = next_node;
+                    *some_curr_comb_node = next_node;
                     continue;
                 }
 
@@ -132,20 +132,21 @@ impl FCQueue {
                         if (consumer_satisfied) {
                             break;
                         }
-                        let head_next: QueueFatNode = local_queue_head.next;
+                        let head_next: QueueFatNode = some_local_queue_head.next.unwrap();
 
                         if (head_next.items_left == 0) {
-                            local_queue_head = head_next;
+                            *some_local_queue_head = head_next;
                         } else {
                             head_next.items_left -= 1;
-                            some_curr_comb_node.item = head_next.items[head_next.items_left];
+                            some_curr_comb_node.item = Some(head_next.items[head_next.items_left]);
                             consumer_satisfied = true;
                         }
                     }
 
                     if !consumer_satisfied && (num_pushed_items > 0) {
                         num_pushed_items -= 1;
-                        some_curr_comb_node.item = self.combined_pushed_items[num_pushed_items];
+                        some_curr_comb_node.item =
+                            Some(self.combined_pushed_items[num_pushed_items]);
                         consumer_satisfied = true;
                     }
 
