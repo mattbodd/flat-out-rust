@@ -1,5 +1,3 @@
-// Time-stamp: <2020-04-24 16:37:51 (mbodd)>
-
 use std::sync::atomic::AtomicUsize;
 use crossbeam_utils::atomic::AtomicCell;
 use std::thread;
