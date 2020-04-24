@@ -5,8 +5,8 @@ use std::sync::atomic::Ordering;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
-const COMBINING_NODE_TIMEOUT: i64 = 10000;
-const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: i64 = 100;
+const COMBINING_NODE_TIMEOUT: u64 = 10000;
+const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: u64 = 100;
 const MAX_COMBINING_ROUNDS: i64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: i64 = 100;
 
@@ -27,7 +27,7 @@ impl CombiningNode {
             last_request_timestamp: -1,
             next: None,
             is_request_valid: false,
-            is_comsume: false,
+            is_consumer: false,
             item: None,
         }
     }
@@ -78,7 +78,7 @@ impl FCQueue {
             // }
             comb_list_head: Some(CombiningNode::new()),
             queue_head: Some(QueueFatNode::new()),
-            queue_tail: &self.queue_head,
+            queue_tail: &queue_head,
         }
     }
 
@@ -87,8 +87,8 @@ impl FCQueue {
         let num_pushed_items: usize = 0;
         let curr_comb_node: Option<CombiningNode> = None;
         let last_combining_node: Option<CombiningNode> = None;
-
-        let local_current_timestamp: u64 = self.current_timestamp += 1;
+        self.current_timestamp += 1;
+        let local_current_timestamp: u64 = self.current_timestamp;
         let local_queue_head: Option<QueueFatNode> = &self.queue_head;
 
         let check_timestamps: bool =
