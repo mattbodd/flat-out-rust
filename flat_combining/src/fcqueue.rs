@@ -79,8 +79,8 @@ impl FCQueue {
     }
 
     fn doFlatCombining(&mut self, combiner_thread_node: &CombiningNode) {
-        let combining_round: u64 = 0;
-        let num_pushed_items: usize = 0;
+        let mut combining_round: u64 = 0;
+        let mut num_pushed_items: usize = 0;
         let curr_comb_node: Option<Box<CombiningNode>> = None;
         let last_combining_node: Option<Box<CombiningNode>> = None;
         self.current_timestamp += 1;
@@ -162,7 +162,7 @@ impl FCQueue {
             }
 
             if num_pushed_items > 0 {
-                let new_node = QueueFatNode::new();
+                let mut new_node = QueueFatNode::new();
                 new_node.items_left = num_pushed_items;
                 new_node.items = Vec::with_capacity(num_pushed_items);
                 for an_item in self.combined_pushed_items {
@@ -185,19 +185,19 @@ impl FCQueue {
         }
     }
 
-    fn link_in_combining(&self, cn: &CombiningNode) {
+    fn link_in_combining(&self, cn: &mut CombiningNode) {
         loop {
             let curr_head: Option<Box<CombiningNode>> = self.comb_list_head;
             cn.next = curr_head;
 
             // Unsure about this
-            if std::ptr::eq(&self.comb_list_head.unwrap(), &curr_head.unwrap()) {
-                // CAS and conditionally return
-            }
+            //if std::ptr::eq(&self.comb_list_head.unwrap(), &curr_head.unwrap()) {
+            // CAS and conditionally return
+            //}
         }
     }
 
-    fn wait_until_fulfilled(&self, comb_node: &CombiningNode) {
+    fn wait_until_fulfilled(&mut self, comb_node: &mut CombiningNode) {
         let mut rounds = 0;
 
         loop {
@@ -224,7 +224,7 @@ impl FCQueue {
         }
     }
 
-    fn enqueue(&self, val: i32) -> bool {
+    fn enqueue(&mut self, val: i32) -> bool {
         // Combining node should be a thread local variable
         let mut comb_node: Option<CombiningNode> = None;
         FCQueue::combining_node.with(|cn| {
@@ -246,7 +246,7 @@ impl FCQueue {
         true
     }
 
-    fn dequeue(&self) -> i32 {
+    fn dequeue(&mut self) -> i32 {
         // Combining node should be a thread local variable
         let mut comb_node: Option<CombiningNode> = None;
         FCQueue::combining_node.with(|cn| {
