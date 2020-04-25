@@ -12,24 +12,24 @@ const MAX_COMBINING_ROUNDS: u64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
 
 struct CombiningNode {
-    is_linked: bool,
-    last_request_timestamp: u64,
-    next: Option<Box<CombiningNode>>,
-    is_request_valid: bool,
-    is_consumer: bool,
-    item: Option<i32>,
+    is_linked: AtomicCell<bool>,
+    last_request_timestamp: AtomicCell<u64>,
+    next: AtomicCell<Option<Box<CombiningNode>>>,
+    is_request_valid: AtomicCell<bool>,
+    is_consumer: AtomicCell<bool>,
+    item: AtomicCell<Option<i32>>,
 }
 
 impl CombiningNode {
     fn new() -> CombiningNode {
         // TODO: How to initiailize additional fields
         CombiningNode {
-            is_linked: false,
-            last_request_timestamp: 0,
-            next: None,
-            is_request_valid: false,
-            is_consumer: false,
-            item: None,
+            is_linked: AtomicCell::new(false),
+            last_request_timestamp: AtomicCell::new(0),
+            next: AtomicCell::new(None),
+            is_request_valid: AtomicCell::new(false),
+            is_consumer: AtomicCell::new(false),
+            item: AtomicCell::new(None),
         }
     }
 }
@@ -81,16 +81,16 @@ impl FCQueue {
     fn doFlatCombining(&mut self, combiner_thread_node: &CombiningNode) {
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize = 0;
-        let curr_comb_node: Option<Box<CombiningNode>> = None;
-        let last_combining_node: Option<Box<CombiningNode>> = None;
+        let mut curr_comb_node: Option<Box<CombiningNode>> = None;
+        let mut last_combining_node: Option<Box<CombiningNode>> = None;
         self.current_timestamp += 1;
         let local_current_timestamp: u64 = self.current_timestamp;
-        let local_queue_head: Option<Box<QueueFatNode>> = self.queue_head;
+        let mut local_queue_head: Option<Box<QueueFatNode>> = self.queue_head;
 
         let check_timestamps: bool =
-            (local_current_timestamp % COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY == 0);
+            local_current_timestamp % COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY == 0;
 
-        let have_work: bool = false;
+        let mut have_work: bool = false;
 
         loop {
             num_pushed_items = 0;
@@ -99,18 +99,22 @@ impl FCQueue {
             have_work = false;
 
             // At this point, `some_curr_comb_node` is a *copied* version
-            while let Some(some_curr_comb_node) = &mut curr_comb_node {
-                if !some_curr_comb_node.is_request_valid {
-                    let next_node: CombiningNode = *some_curr_comb_node.next.unwrap();
+            while let Some(some_curr_comb_node) = &curr_comb_node {
+                if !some_curr_comb_node.is_request_valid.load() {
+                    let next_node: CombiningNode = *some_curr_comb_node.next.take().unwrap();
 
                     // Definitely an illegal second comparison
                     if check_timestamps
                         && (!std::ptr::eq(&curr_comb_node.unwrap(), &self.comb_list_head.unwrap()))
-                        && ((local_current_timestamp - some_curr_comb_node.last_request_timestamp)
+                        && ((local_current_timestamp
+                            - some_curr_comb_node.last_request_timestamp.load())
                             > COMBINING_NODE_TIMEOUT)
                     {
-                        last_combining_node.unwrap().next = Some(Box::new(next_node));
-                        some_curr_comb_node.is_linked = false;
+                        last_combining_node
+                            .unwrap()
+                            .next
+                            .store(Some(Box::new(next_node)));
+                        some_curr_comb_node.is_linked.store(false);
                     }
 
                     *some_curr_comb_node = Box::new(next_node);
@@ -119,46 +123,52 @@ impl FCQueue {
 
                 have_work = true;
 
-                some_curr_comb_node.last_request_timestamp = local_current_timestamp;
+                some_curr_comb_node
+                    .last_request_timestamp
+                    .store(local_current_timestamp);
 
-                if some_curr_comb_node.is_consumer {
+                if some_curr_comb_node.is_consumer.load() {
                     let consumer_satisfied: bool = false;
 
                     while let Some(some_local_queue_head) = &mut local_queue_head {
-                        if (consumer_satisfied) {
+                        if consumer_satisfied {
                             break;
                         }
                         let head_next: QueueFatNode = *(some_local_queue_head.next.unwrap());
 
-                        if (head_next.items_left == 0) {
+                        if head_next.items_left == 0 {
                             *some_local_queue_head = Box::new(head_next);
                         } else {
                             head_next.items_left -= 1;
-                            some_curr_comb_node.item = Some(head_next.items[head_next.items_left]);
+                            some_curr_comb_node
+                                .item
+                                .store(Some(head_next.items[head_next.items_left]));
                             consumer_satisfied = true;
                         }
                     }
 
                     if !consumer_satisfied && (num_pushed_items > 0) {
                         num_pushed_items -= 1;
-                        some_curr_comb_node.item =
-                            Some(self.combined_pushed_items[num_pushed_items]);
+                        some_curr_comb_node
+                            .item
+                            .store(Some(self.combined_pushed_items[num_pushed_items]));
                         consumer_satisfied = true;
                     }
 
                     if !consumer_satisfied {
-                        some_curr_comb_node.item = None;
+                        some_curr_comb_node.item.store(None);
                     }
                 } else {
                     self.combined_pushed_items[num_pushed_items] =
-                        some_curr_comb_node.item.unwrap();
+                        some_curr_comb_node.item.load().unwrap();
                     num_pushed_items += 1;
                 }
 
-                some_curr_comb_node.is_request_valid = false;
+                some_curr_comb_node.is_request_valid.store(false);
 
                 last_combining_node = curr_comb_node;
-                curr_comb_node = curr_comb_node.unwrap().next;
+                // Should this be a take or load?
+                curr_comb_node = curr_comb_node.unwrap().next.take();
             }
 
             if num_pushed_items > 0 {
@@ -185,10 +195,10 @@ impl FCQueue {
         }
     }
 
-    fn link_in_combining(&self, cn: &mut CombiningNode) {
+    fn link_in_combining(&self, cn: &CombiningNode) {
         loop {
             let curr_head: Option<Box<CombiningNode>> = self.comb_list_head;
-            cn.next = curr_head;
+            cn.next.store(curr_head);
 
             // Unsure about this
             //if std::ptr::eq(&self.comb_list_head.unwrap(), &curr_head.unwrap()) {
@@ -197,12 +207,12 @@ impl FCQueue {
         }
     }
 
-    fn wait_until_fulfilled(&mut self, comb_node: &mut CombiningNode) {
+    fn wait_until_fulfilled(&mut self, comb_node: &CombiningNode) {
         let mut rounds = 0;
 
         loop {
-            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) && !comb_node.is_linked {
-                comb_node.is_linked = true;
+            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) && !comb_node.is_linked.load() {
+                comb_node.is_linked.store(true);
                 self.link_in_combining(comb_node);
             }
 
@@ -215,7 +225,7 @@ impl FCQueue {
                     self.fc_lock.store(0, Ordering::Relaxed);
                 }
 
-                if !comb_node.is_request_valid {
+                if !comb_node.is_request_valid.load() {
                     return;
                 }
 
@@ -228,20 +238,28 @@ impl FCQueue {
         // Combining node should be a thread local variable
         let mut comb_node: Option<CombiningNode> = None;
         FCQueue::combining_node.with(|cn| {
-            comb_node = Some(*cn);
+            // Create new instance of combining node using old instance's values
+            comb_node = Some(CombiningNode {
+                is_linked: AtomicCell::new(cn.is_linked.take()),
+                last_request_timestamp: AtomicCell::new(cn.last_request_timestamp.take()),
+                next: AtomicCell::new(cn.next.take()),
+                is_request_valid: AtomicCell::new(cn.is_request_valid.take()),
+                is_consumer: AtomicCell::new(cn.is_consumer.take()),
+                item: AtomicCell::new(cn.item.take()),
+            });
         });
 
-        let mut comb_node: CombiningNode = match comb_node {
+        let comb_node: CombiningNode = match comb_node {
             Some(cn) => cn,
             None => panic!("No combining node found in `enqueue`"),
         };
 
-        comb_node.is_consumer = false;
-        comb_node.item = Some(val);
+        comb_node.is_consumer.store(false);
+        comb_node.item.store(Some(val));
 
-        comb_node.is_request_valid = true;
+        comb_node.is_request_valid.store(true);
 
-        self.wait_until_fulfilled(&mut comb_node);
+        self.wait_until_fulfilled(&comb_node);
 
         true
     }
@@ -250,21 +268,29 @@ impl FCQueue {
         // Combining node should be a thread local variable
         let mut comb_node: Option<CombiningNode> = None;
         FCQueue::combining_node.with(|cn| {
-            comb_node = Some(*cn);
+            // Create new instance of combining node using old instance's values
+            comb_node = Some(CombiningNode {
+                is_linked: AtomicCell::new(cn.is_linked.take()),
+                last_request_timestamp: AtomicCell::new(cn.last_request_timestamp.take()),
+                next: AtomicCell::new(cn.next.take()),
+                is_request_valid: AtomicCell::new(cn.is_request_valid.take()),
+                is_consumer: AtomicCell::new(cn.is_consumer.take()),
+                item: AtomicCell::new(cn.item.take()),
+            });
         });
 
-        let mut comb_node: CombiningNode = match comb_node {
+        let comb_node: CombiningNode = match comb_node {
             Some(cn) => cn,
             None => panic!("No combining node found in `enqueue`"),
         };
 
-        comb_node.is_consumer = true;
+        comb_node.is_consumer.store(true);
 
-        comb_node.is_request_valid = true;
+        comb_node.is_request_valid.store(true);
 
-        self.wait_until_fulfilled(&mut comb_node);
+        self.wait_until_fulfilled(&comb_node);
 
-        comb_node.item.unwrap()
+        comb_node.item.load().unwrap()
     }
 }
 
