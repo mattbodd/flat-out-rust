@@ -14,7 +14,7 @@ const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
 struct CombiningNode {
     is_linked: AtomicCell<bool>,
     last_request_timestamp: AtomicCell<u64>,
-    next: AtomicCell<Option<Box<CombiningNode>>>,
+    next: AtomicPtr<Option<Box<CombiningNode>>>>,
     is_request_valid: AtomicCell<bool>,
     is_consumer: AtomicCell<bool>,
     item: AtomicCell<Option<i32>>,
@@ -26,7 +26,7 @@ impl CombiningNode {
         CombiningNode {
             is_linked: AtomicCell::new(false),
             last_request_timestamp: AtomicCell::new(0),
-            next: AtomicCell::new(None),
+            next: AtomicPtr::new(None),
             is_request_valid: AtomicCell::new(false),
             is_consumer: AtomicCell::new(false),
             item: AtomicCell::new(None),
@@ -195,15 +195,24 @@ impl FCQueue {
         }
     }
 
-    fn link_in_combining(&self, cn: &CombiningNode) {
+    fn link_in_combining(&self, cn: *mut Box<CombiningNode>) {
         loop {
-            let curr_head: Option<Box<CombiningNode>> = self.comb_list_head;
-            cn.next.store(curr_head);
-
-            // Unsure about this
-            //if std::ptr::eq(&self.comb_list_head.unwrap(), &curr_head.unwrap()) {
-            // CAS and conditionally return
-            //}
+            let curr_head = self.comb_list_head.load(Ordering::Relaxed);
+        
+            unsafe {
+                //let unboxed_cn: Box<Box<CombiningNode>> = Box::from_raw(cn);
+                //let next: Option<Box<CombiningNode>> = unboxed_cn.next;
+                    //let unboxed_curr_head: Box<CombiningNode> = *Box::from_raw(curr_head);
+                if curr_head.is_null() {
+                    Box::from_raw(cn).next = None;
+                } else {
+                    Box::from_raw(cn).next = Some(*Box::from_raw(curr_head));
+                }
+            }
+            
+            if self.comb_list_head.compare_exchange(curr_head, cn, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+                break;
+            }
         }
     }
 
