@@ -11,6 +11,9 @@ const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: u64 = 100;
 const MAX_COMBINING_ROUNDS: u64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
 
+
+
+
 struct CombiningNode {
     is_linked: AtomicCell<bool>,
     last_request_timestamp: AtomicCell<u64>,
@@ -35,7 +38,7 @@ impl CombiningNode {
 #[derive(Clone)]
 pub struct QueueFatNode {
     items: Vec<i32>,
-    items_left: usize,
+    pub items_left: usize,
 }
 
 impl QueueFatNode {
@@ -50,6 +53,12 @@ impl QueueFatNode {
         for val in &self.items {
             println!("{}", val);
         }
+    }
+
+}
+fn get_fat_queue(queue: &VecDeque<QueueFatNode> ){
+    for val in queue{
+    	val.get();
     }
 }
 
@@ -71,6 +80,7 @@ impl FCQueue {
             queue: VecDeque::new(),
         }
     }
+    
 
     fn doFlatCombining(&mut self) {
         let mut combining_round: u64 = 0;
@@ -83,7 +93,6 @@ impl FCQueue {
         let mut last_combining_node: Option<usize> = None;
         self.current_timestamp.fetch_add(1);
         let local_current_timestamp: u64 = self.current_timestamp.load();
-        let mut local_queue: VecDeque<QueueFatNode> = self.queue.clone();
 
         let check_timestamps: bool =
             local_current_timestamp % COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY == 0;
@@ -134,16 +143,17 @@ impl FCQueue {
                 if curr_comb_node.front().unwrap().is_consumer.load() {
                     let mut consumer_satisfied: bool = false;
 
-                    while !local_queue.is_empty() && !consumer_satisfied {
-                        if local_queue.front().unwrap().items_left == 0 {
-                            local_queue.pop_front();
+                    while !self.queue.is_empty() && !consumer_satisfied {
+                        if self.queue.front().unwrap().items_left == 0 {
+                            self.queue.pop_front();
                         } else {
-                            local_queue.front_mut().unwrap().items_left -= 1;
+
+                            self.queue.front_mut().unwrap().items_left -= 1;
                             curr_comb_node
                                 .front()
                                 .unwrap()
                                 .item
-                                .store(local_queue.front_mut().unwrap().items.pop());
+                                .store(self.queue.front_mut().unwrap().items.pop());
                             consumer_satisfied = true;
                         }
                     }
@@ -198,7 +208,6 @@ impl FCQueue {
 
             combining_round += 1;
             if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
-                //self.queue = local_queue_head;
 
                 return;
             }
