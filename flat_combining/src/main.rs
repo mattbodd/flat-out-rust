@@ -1,6 +1,3 @@
-mod datastructures;
-use datastructures::{queue, stack};
-
 mod fcqueue;
 use fcqueue::FCQueue;
 
