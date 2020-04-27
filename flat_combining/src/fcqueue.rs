@@ -134,16 +134,16 @@ impl FCQueue {
                 if curr_comb_node.front().unwrap().is_consumer.load() {
                     let mut consumer_satisfied: bool = false;
 
-                    while local_queue.len() >= 2 && !consumer_satisfied {
-                        if local_queue[1].items_left == 0 {
+                    while !local_queue.is_empty() && !consumer_satisfied {
+                        if local_queue.front().unwrap().items_left == 0 {
                             local_queue.pop_front();
                         } else {
-                            local_queue[1].items_left -= 1;
+                            local_queue.front_mut().unwrap().items_left -= 1;
                             curr_comb_node
                                 .front()
                                 .unwrap()
                                 .item
-                                .store(local_queue[1].items.pop());
+                                .store(local_queue.front_mut().unwrap().items.pop());
                             consumer_satisfied = true;
                         }
                     }
@@ -258,7 +258,7 @@ impl FCQueue {
         true
     }
 
-    fn dequeue(&mut self) -> i32 {
+    pub fn dequeue(&mut self) -> i32 {
         let combining_node: CombiningNode = CombiningNode::new();
 
         combining_node.is_consumer.store(true);
