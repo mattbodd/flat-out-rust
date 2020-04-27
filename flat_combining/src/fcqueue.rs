@@ -83,7 +83,7 @@ impl FCQueue {
         let mut last_combining_node: Option<usize> = None;
         self.current_timestamp.fetch_add(1);
         let local_current_timestamp: u64 = self.current_timestamp.load();
-        let mut local_queue_head: VecDeque<QueueFatNode> = self.queue.clone();
+        let mut local_queue: VecDeque<QueueFatNode> = self.queue.clone();
 
         let check_timestamps: bool =
             local_current_timestamp % COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY == 0;
@@ -107,7 +107,7 @@ impl FCQueue {
                     // Definitely an illegal second comparison
                     if check_timestamps
                         && (!std::ptr::eq(
-                            &mut curr_comb_node.front().unwrap(),
+                            &mut curr_comb_nodxe.front().unwrap(),
                             &self.comb_list_head.front().unwrap(),
                         ))
                         && ((local_current_timestamp
@@ -131,37 +131,36 @@ impl FCQueue {
                     .last_request_timestamp
                     .store(local_current_timestamp);
 
-                if false { /*some_curr_comb_node.is_consumer.load() {
-                     let consumer_satisfied: bool = false;
+                if curr_comb_node.front().unwrap().is_consumer.load() {
+                    let mut consumer_satisfied: bool = false;
 
-                     while let Some(some_local_queue_head) = &mut local_queue_head {
-                         if consumer_satisfied {
-                             break;
-                         }
-                         let head_next: QueueFatNode = *(some_local_queue_head.next.unwrap());
+                    while local_queue.len() >= 2 && !consumer_satisfied {
+                        if local_queue[1].items_left == 0 {
+                            local_queue.pop_front();
+                        } else {
+                            local_queue[1].items_left -= 1;
+                            curr_comb_node
+                                .front()
+                                .unwrap()
+                                .item
+                                .store(local_queue[1].items.pop());
+                            consumer_satisfied = true;
+                        }
+                    }
 
-                         if head_next.items_left == 0 {
-                             *some_local_queue_head = Box::new(head_next);
-                         } else {
-                             head_next.items_left -= 1;
-                             some_curr_comb_node
-                                 .item
-                                 .store(Some(head_next.items[head_next.items_left]));
-                             consumer_satisfied = true;
-                         }
-                     }
+                    if !consumer_satisfied && (num_pushed_items > 0) {
+                        num_pushed_items -= 1;
+                        curr_comb_node
+                            .front()
+                            .unwrap()
+                            .item
+                            .store(self.combined_pushed_items.pop());
+                        consumer_satisfied = true;
+                    }
 
-                     if !consumer_satisfied && (num_pushed_items > 0) {
-                         num_pushed_items -= 1;
-                         some_curr_comb_node
-                             .item
-                             .store(Some(self.combined_pushed_items[num_pushed_items]));
-                         consumer_satisfied = true;
-                     }
-
-                     if !consumer_satisfied {
-                         some_curr_comb_node.item.store(None);
-                     }*/
+                    if !consumer_satisfied {
+                        curr_comb_node.front().unwrap().item.store(None);
+                    }
                 } else {
                     // Old
                     /*
@@ -214,10 +213,10 @@ impl FCQueue {
         //  Mutex is unlocked at end of scope
     }
 
-    fn wait_until_fulfilled(&mut self, comb_node: CombiningNode) {
+    fn wait_until_fulfilled(&mut self, shared_comb_node: Arc<CombiningNode>) {
         let mut rounds = 0;
 
-        let shared_comb_node: Arc<CombiningNode> = Arc::new(comb_node);
+        //let shared_comb_node: Arc<CombiningNode> = Arc::new(comb_node);
 
         loop {
             if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0)
@@ -253,39 +252,22 @@ impl FCQueue {
 
         combining_node.is_request_valid.store(true);
 
-        self.wait_until_fulfilled(combining_node);
+        let shared_comb_node: Arc<CombiningNode> = Arc::new(combining_node);
+        self.wait_until_fulfilled(Arc::clone(&shared_comb_node));
 
         true
     }
 
-    /*
     fn dequeue(&mut self) -> i32 {
-        // Combining node should be a thread local variable
-        let mut comb_node: Option<CombiningNode> = None;
-        FCQueue::combining_node.with(|cn| {
-            // Create new instance of combining node using old instance's values
-            comb_node = Some(CombiningNode {
-                is_linked: AtomicCell::new(cn.is_linked.take()),
-                last_request_timestamp: AtomicCell::new(cn.last_request_timestamp.take()),
-                next: AtomicCell::new(cn.next.take()),
-                is_request_valid: AtomicCell::new(cn.is_request_valid.take()),
-                is_consumer: AtomicCell::new(cn.is_consumer.take()),
-                item: AtomicCell::new(cn.item.take()),
-            });
-        });
+        let combining_node: CombiningNode = CombiningNode::new();
 
-        let comb_node: CombiningNode = match comb_node {
-            Some(cn) => cn,
-            None => panic!("No combining node found in `enqueue`"),
-        };
+        combining_node.is_consumer.store(true);
 
-        comb_node.is_consumer.store(true);
+        combining_node.is_request_valid.store(true);
 
-        comb_node.is_request_valid.store(true);
+        let shared_comb_node: Arc<CombiningNode> = Arc::new(combining_node);
+        self.wait_until_fulfilled(Arc::clone(&shared_comb_node));
 
-        self.wait_until_fulfilled(&comb_node);
-
-        comb_node.item.load().unwrap()
+        return shared_comb_node.item.load().unwrap();
     }
-     */
 }
