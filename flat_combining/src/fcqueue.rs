@@ -1,10 +1,8 @@
 use crossbeam_utils::atomic::AtomicCell;
 use std::collections::VecDeque;
-use std::rc::Rc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 // Global namespace
 const MAX_THREADS: usize = 512;
@@ -35,7 +33,7 @@ impl CombiningNode {
 }
 
 #[derive(Clone)]
-struct QueueFatNode {
+pub struct QueueFatNode {
     items: Vec<i32>,
     items_left: usize,
 }
@@ -48,26 +46,33 @@ impl QueueFatNode {
             items_left: 0,
         }
     }
+    pub fn get(&self)
+    {
+    	for val in &self.items{
+    		println!("{}",val);
+    	}
+    }
 }
 
-struct FCQueue {
+pub struct FCQueue {
     fc_lock: AtomicUsize,
     combined_pushed_items: Vec<i32>,
     current_timestamp: AtomicCell<u64>,
     comb_list_head: Mutex<VecDeque<Arc<CombiningNode>>>,
-    queue: VecDeque<QueueFatNode>,
+    pub queue: VecDeque<QueueFatNode>,
 }
 
 impl FCQueue {
-    fn new() -> FCQueue{
+    pub fn new() -> FCQueue{
         FCQueue {
             fc_lock: AtomicUsize::new(0),
-            combined_pushed_items: Vec::with_capacity(MAX_THREADS),
+            combined_pushed_items: vec![0;MAX_THREADS],
             current_timestamp: AtomicCell::new(0),
             comb_list_head: Mutex::new(VecDeque::new()),
             queue: VecDeque::new(),
         }
     }
+
 
     fn doFlatCombining(&mut self) {
         let mut combining_round: u64 = 0;
@@ -76,6 +81,7 @@ impl FCQueue {
         {
             curr_comb_node = self.comb_list_head.lock().unwrap().clone();
         }
+
         let mut last_combining_node: Option<usize> = None;
         self.current_timestamp.fetch_add(1);
         let local_current_timestamp: u64 = self.current_timestamp.load();
@@ -89,7 +95,7 @@ impl FCQueue {
         loop {
             num_pushed_items = 0;
             {
-                curr_comb_node = self.comb_list_head.lock().unwrap().clone();
+                curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
             }
             last_combining_node = Some(0);
 
@@ -159,6 +165,7 @@ impl FCQueue {
                          some_curr_comb_node.item.store(None);
                      }*/
                 } else {
+
                     self.combined_pushed_items[num_pushed_items] =
                         curr_comb_node.front().unwrap().item.load().unwrap();
                     num_pushed_items += 1;
@@ -172,6 +179,8 @@ impl FCQueue {
 
                 // last_combining_node = curr_comb_node;
                 curr_comb_node.pop_front();
+                println!("{}",curr_comb_node.len());
+                println!("{}",curr_comb_node.is_empty());
             }
 
             if num_pushed_items > 0 {
@@ -179,15 +188,18 @@ impl FCQueue {
                 new_node.items_left = num_pushed_items;
                 new_node.items = Vec::with_capacity(num_pushed_items);
                 for an_item in &self.combined_pushed_items {
-                    new_node.items.push(*an_item)
+                    new_node.items.push(*an_item);
+                    
                 }
 
+
                 self.queue.push_back(new_node);
+                //println!("{}",self.queue.len());
             }
 
             combining_round += 1;
             if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
-                self.queue = local_queue_head;
+                //self.queue = local_queue_head;
 
                 return;
             }
@@ -233,7 +245,7 @@ impl FCQueue {
 
     }
 
-    fn enqueue(&mut self, val: i32) -> bool {
+    pub fn enqueue(&mut self, val: i32) -> bool {
         let combining_node: CombiningNode = CombiningNode::new();
 
         combining_node.is_consumer.store(false);
