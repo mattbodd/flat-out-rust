@@ -46,11 +46,10 @@ impl QueueFatNode {
             items_left: 0,
         }
     }
-    pub fn get(&self)
-    {
-    	for val in &self.items{
-    		println!("{}",val);
-    	}
+    pub fn get(&self) {
+        for val in &self.items {
+            println!("{}", val);
+        }
     }
 }
 
@@ -63,16 +62,15 @@ pub struct FCQueue {
 }
 
 impl FCQueue {
-    pub fn new() -> FCQueue{
+    pub fn new() -> FCQueue {
         FCQueue {
             fc_lock: AtomicUsize::new(0),
-            combined_pushed_items: vec![0;MAX_THREADS],
+            combined_pushed_items: Vec::new(),
             current_timestamp: AtomicCell::new(0),
             comb_list_head: Mutex::new(VecDeque::new()),
             queue: VecDeque::new(),
         }
     }
-
 
     fn doFlatCombining(&mut self) {
         let mut combining_round: u64 = 0;
@@ -165,9 +163,14 @@ impl FCQueue {
                          some_curr_comb_node.item.store(None);
                      }*/
                 } else {
-
+                    // Old
+                    /*
                     self.combined_pushed_items[num_pushed_items] =
                         curr_comb_node.front().unwrap().item.load().unwrap();
+                     */
+                    self.combined_pushed_items
+                        .push(curr_comb_node.front().unwrap().item.load().unwrap());
+
                     num_pushed_items += 1;
                 }
 
@@ -184,12 +187,10 @@ impl FCQueue {
             if num_pushed_items > 0 {
                 let mut new_node: QueueFatNode = QueueFatNode::new();
                 new_node.items_left = num_pushed_items;
-                new_node.items = Vec::with_capacity(num_pushed_items);
+                new_node.items = Vec::new();
                 for an_item in &self.combined_pushed_items {
                     new_node.items.push(*an_item);
-                    
                 }
-
 
                 self.queue.push_back(new_node);
             }
@@ -203,7 +204,7 @@ impl FCQueue {
         }
     }
 
-    fn link_in_combining(&self, cn:  Arc<CombiningNode>) {
+    fn link_in_combining(&self, cn: Arc<CombiningNode>) {
         // Block until we have access to the global `comb_list_head` at which point
         // we merge our thread local queue
         let mut curr_comb_queue = self.comb_list_head.lock().unwrap();
@@ -214,10 +215,12 @@ impl FCQueue {
     fn wait_until_fulfilled(&mut self, comb_node: CombiningNode) {
         let mut rounds = 0;
 
-        let shared_comb_node:Arc<CombiningNode>=Arc::new(comb_node);
+        let shared_comb_node: Arc<CombiningNode> = Arc::new(comb_node);
 
         loop {
-            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) && !shared_comb_node.is_linked.load() {
+            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0)
+                && !shared_comb_node.is_linked.load()
+            {
                 shared_comb_node.is_linked.store(true);
                 self.link_in_combining(Arc::clone(&shared_comb_node));
             }
@@ -238,8 +241,6 @@ impl FCQueue {
                 rounds += 1;
             }
         }
-
-
     }
 
     pub fn enqueue(&mut self, val: i32) -> bool {
