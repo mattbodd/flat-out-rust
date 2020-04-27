@@ -179,8 +179,6 @@ impl FCQueue {
 
                 // last_combining_node = curr_comb_node;
                 curr_comb_node.pop_front();
-                println!("{}",curr_comb_node.len());
-                println!("{}",curr_comb_node.is_empty());
             }
 
             if num_pushed_items > 0 {
@@ -194,7 +192,6 @@ impl FCQueue {
 
 
                 self.queue.push_back(new_node);
-                //println!("{}",self.queue.len());
             }
 
             combining_round += 1;
