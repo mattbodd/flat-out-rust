@@ -59,16 +59,8 @@ struct FCQueue<'a> {
     queue: VecDeque<QueueFatNode>,
 }
 
-trait new {
-    fn new() -> FCQueue;
-}
-
-trait doFlatCombining {
-    fn doFlatCombining(&mut self);
-}
-
-impl new for FCQueue {
-    fn new() -> FCQueue {
+impl<'a> FCQueue<'a> {
+    fn new() -> FCQueue<'a> {
         FCQueue {
             fc_lock: AtomicUsize::new(0),
             combined_pushed_items: Vec::with_capacity(MAX_THREADS),
@@ -77,11 +69,9 @@ impl new for FCQueue {
             queue: VecDeque::new(),
         }
     }
-}
-
-impl doFlatCombining for FCQueue {
+	
     fn doFlatCombining(&mut self) {
-        let mut combining_round: u64 = 0;
+    	let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize = 0;
         let mut curr_comb_node: VecDeque<&CombiningNode>;
         {
@@ -204,9 +194,9 @@ impl doFlatCombining for FCQueue {
             }
         }
     }
-}
+       
+    
 
-impl FCQueue {
     fn link_in_combining(&self, cn: &CombiningNode) {
         // Block until we have access to the global `comb_list_head` at which point
         // we merge our thread local queue
