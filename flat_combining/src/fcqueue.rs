@@ -50,31 +50,29 @@ impl QueueFatNode {
     }
 }
 
-struct FCQueue<'a> {
+struct FCQueue {
     fc_lock: AtomicUsize,
     combined_pushed_items: Vec<i32>,
     current_timestamp: AtomicCell<u64>,
-    comb_list_head: Mutex<VecDeque<&'a CombiningNode>>,
+    comb_list_head: Mutex<VecDeque<Arc<CombiningNode>>>,
     queue: VecDeque<QueueFatNode>,
-    trash: Arc<Mutex<VecDeque<CombiningNode>>>,
 }
 
-impl<'a> FCQueue<'a> {
-    fn new() -> FCQueue<'a> {
+impl FCQueue {
+    fn new() -> FCQueue{
         FCQueue {
             fc_lock: AtomicUsize::new(0),
             combined_pushed_items: Vec::with_capacity(MAX_THREADS),
             current_timestamp: AtomicCell::new(0),
             comb_list_head: Mutex::new(VecDeque::new()),
             queue: VecDeque::new(),
-            trash: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
     fn doFlatCombining(&mut self) {
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize = 0;
-        let mut curr_comb_node: VecDeque<&CombiningNode>;
+        let mut curr_comb_node: VecDeque<Arc<CombiningNode>>;
         {
             curr_comb_node = self.comb_list_head.lock().unwrap().clone();
         }
@@ -196,7 +194,7 @@ impl<'a> FCQueue<'a> {
         }
     }
 
-    fn link_in_combining(&self, cn: &'a CombiningNode) {
+    fn link_in_combining(&self, cn:  Arc<CombiningNode>) {
         // Block until we have access to the global `comb_list_head` at which point
         // we merge our thread local queue
         let mut curr_comb_queue = self.comb_list_head.lock().unwrap();
@@ -207,10 +205,12 @@ impl<'a> FCQueue<'a> {
     fn wait_until_fulfilled(&mut self, comb_node: CombiningNode) {
         let mut rounds = 0;
 
+        let shared_comb_node:Arc<CombiningNode>=Arc::new(comb_node);
+
         loop {
-            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) && !comb_node.is_linked.load() {
-                comb_node.is_linked.store(true);
-                self.link_in_combining(&comb_node);
+            if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0) && !shared_comb_node.is_linked.load() {
+                shared_comb_node.is_linked.store(true);
+                self.link_in_combining(Arc::clone(&shared_comb_node));
             }
 
             if self.fc_lock.load(Ordering::Relaxed) == 0 {
@@ -222,7 +222,7 @@ impl<'a> FCQueue<'a> {
                     self.fc_lock.store(0, Ordering::Relaxed);
                 }
 
-                if !comb_node.is_request_valid.load() {
+                if !shared_comb_node.is_request_valid.load() {
                     break;
                 }
 
@@ -230,9 +230,7 @@ impl<'a> FCQueue<'a> {
             }
         }
 
-        let clone = Arc::clone(&self.trash);
-        let mut _trash = clone.lock().unwrap();
-        _trash.push_back(comb_node);
+
     }
 
     fn enqueue(&mut self, val: i32) -> bool {
