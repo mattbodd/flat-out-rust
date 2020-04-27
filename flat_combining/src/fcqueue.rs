@@ -186,11 +186,13 @@ impl FCQueue {
 
             if num_pushed_items > 0 {
                 let mut new_node: QueueFatNode = QueueFatNode::new();
+
+                // No more than MAX_THREADS items can be in combined_pushed_items
+                // at a time
+                assert!(num_pushed_items < MAX_THREADS);
+
                 new_node.items_left = num_pushed_items;
-                new_node.items = Vec::new();
-                for an_item in &self.combined_pushed_items {
-                    new_node.items.push(*an_item);
-                }
+                new_node.items = self.combined_pushed_items.drain(..).collect();
 
                 self.queue.push_back(new_node);
             }
