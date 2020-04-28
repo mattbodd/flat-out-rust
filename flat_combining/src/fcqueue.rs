@@ -60,24 +60,24 @@ fn get_fat_queue(queue: &VecDeque<QueueFatNode>) {
 
 pub struct FCQueue {
     fc_lock: AtomicUsize,
-    combined_pushed_items: Vec<i32>,
+    combined_pushed_items: Mutex<Vec<i32>>,
     current_timestamp: AtomicCell<u64>,
     comb_list_head: Mutex<VecDeque<Arc<CombiningNode>>>,
-    pub queue: VecDeque<QueueFatNode>,
+    pub queue: Mutex<VecDeque<QueueFatNode>>,
 }
 
 impl FCQueue {
     pub fn new() -> FCQueue {
         FCQueue {
             fc_lock: AtomicUsize::new(0),
-            combined_pushed_items: Vec::new(),
+            combined_pushed_items: Mutex::new(Vec::new()),
             current_timestamp: AtomicCell::new(0),
             comb_list_head: Mutex::new(VecDeque::new()),
-            queue: VecDeque::new(),
+            queue: Mutex::new(VecDeque::new()),
         }
     }
 
-    fn doFlatCombining(&mut self) {
+    fn doFlatCombining(&self) {
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize = 0;
         let mut curr_comb_node: VecDeque<Arc<CombiningNode>>;
@@ -144,16 +144,16 @@ impl FCQueue {
                 if curr_comb_node.front().unwrap().is_consumer.load() {
                     let mut consumer_satisfied: bool = false;
 
-                    while !self.queue.is_empty() && !consumer_satisfied {
-                        if self.queue.front().unwrap().items_left == 0 {
-                            self.queue.pop_front();
+                    while !self.queue.lock().unwrap().is_empty() && !consumer_satisfied {
+                        if self.queue.lock().unwrap().front().unwrap().items_left == 0 {
+                            self.queue.lock().unwrap().pop_front();
                         } else {
-                            self.queue.front_mut().unwrap().items_left -= 1;
+                            self.queue.lock().unwrap().front_mut().unwrap().items_left -= 1;
                             curr_comb_node
                                 .front()
                                 .unwrap()
                                 .item
-                                .store(self.queue.front_mut().unwrap().items.pop());
+                                .store(self.queue.lock().unwrap().front_mut().unwrap().items.pop());
                             consumer_satisfied = true;
                         }
                     }
@@ -164,7 +164,7 @@ impl FCQueue {
                             .front()
                             .unwrap()
                             .item
-                            .store(self.combined_pushed_items.pop());
+                            .store(self.combined_pushed_items.lock().unwrap().pop());
                         consumer_satisfied = true;
                     }
 
@@ -177,7 +177,7 @@ impl FCQueue {
                     self.combined_pushed_items[num_pushed_items] =
                         curr_comb_node.front().unwrap().item.load().unwrap();
                      */
-                    self.combined_pushed_items
+                    self.combined_pushed_items.lock().unwrap()
                         .push(curr_comb_node.front().unwrap().item.load().unwrap());
 
                     num_pushed_items += 1;
@@ -200,9 +200,9 @@ impl FCQueue {
                 assert!(num_pushed_items < MAX_THREADS);
 
                 new_node.items_left = num_pushed_items;
-                new_node.items = self.combined_pushed_items.drain(..).collect();
+                new_node.items = self.combined_pushed_items.lock().unwrap().drain(..).collect();
 
-                self.queue.push_back(new_node);
+                self.queue.lock().unwrap().push_back(new_node);
             }
 
             combining_round += 1;
@@ -220,7 +220,7 @@ impl FCQueue {
         //  Mutex is unlocked at end of scope
     }
 
-    fn wait_until_fulfilled(&mut self, shared_comb_node: Arc<CombiningNode>) {
+    fn wait_until_fulfilled(&self, shared_comb_node: Arc<CombiningNode>) {
         let mut rounds = 0;
 
         //let shared_comb_node: Arc<CombiningNode> = Arc::new(comb_node);
@@ -251,7 +251,7 @@ impl FCQueue {
         }
     }
 
-    pub fn enqueue(&mut self, val: i32) -> bool {
+    pub fn enqueue(&self, val: i32) -> bool {
         let combining_node: CombiningNode = CombiningNode::new();
 
         combining_node.is_consumer.store(false);
@@ -265,7 +265,7 @@ impl FCQueue {
         true
     }
 
-    pub fn dequeue(&mut self) -> i32 {
+    pub fn dequeue(&self) -> i32 {
         let combining_node: CombiningNode = CombiningNode::new();
 
         combining_node.is_consumer.store(true);
