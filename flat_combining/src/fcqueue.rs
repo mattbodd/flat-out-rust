@@ -80,7 +80,6 @@ impl FCQueue {
             curr_comb_node = self.comb_list_head.lock().unwrap().clone();
         }
 
-        let mut last_combining_node: Option<usize> = None;
         self.current_timestamp.fetch_add(1);
         let local_current_timestamp: u64 = self.current_timestamp.load();
         let mut local_queue: VecDeque<QueueFatNode> = self.queue.clone();
@@ -92,36 +91,43 @@ impl FCQueue {
 
         loop {
             num_pushed_items = 0;
+
+            let orig_comb_list_head: Option<Arc<CombiningNode>> =
+                match self.comb_list_head.lock().unwrap().front() {
+                    Some(head) => Some(Arc::clone(head)),
+                    None => None,
+                };
+
             {
                 curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
             }
-            last_combining_node = Some(0);
 
             have_work = false;
 
             while !curr_comb_node.is_empty() {
-                /*
                 if !curr_comb_node.front().unwrap().is_request_valid.load() {
-                    let next_node: &CombiningNode = curr_comb_node[1];
-
-                    // Definitely an illegal second comparison
+                    // Unsure if `as_ref` gives us a reference that can actually
+                    // be compared with `curr_comb_node.front().unwrap()`
                     if check_timestamps
-                        && (!std::ptr::eq(
-                            &mut curr_comb_nodxe.front().unwrap(),
-                            &self.comb_list_head.front().unwrap(),
+                        && (!Arc::ptr_eq(
+                            &curr_comb_node.front().unwrap(),
+                            &orig_comb_list_head.as_ref().unwrap(),
                         ))
                         && ((local_current_timestamp
-                            - some_curr_comb_node.last_request_timestamp.load())
+                            - curr_comb_node
+                                .front()
+                                .unwrap()
+                                .last_request_timestamp
+                                .load())
                             > COMBINING_NODE_TIMEOUT)
                     {
-                        last_combining_node;
-                        curr_comb_node
+                        println!("Reaching uncertain condition");
+                        curr_comb_node.front().unwrap().is_linked.store(false);
                     }
 
-                    *some_curr_comb_node = Box::new(next_node);
+                    curr_comb_node.pop_front();
                     continue;
                 }
-                */
 
                 have_work = true;
 
@@ -179,7 +185,6 @@ impl FCQueue {
                     .is_request_valid
                     .store(false);
 
-                // last_combining_node = curr_comb_node;
                 curr_comb_node.pop_front();
             }
 
@@ -198,7 +203,7 @@ impl FCQueue {
 
             combining_round += 1;
             if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
-                //self.queue = local_queue_head;
+                self.queue.extend(local_queue);
 
                 return;
             }
