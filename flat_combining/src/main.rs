@@ -12,4 +12,7 @@ fn main() {
     new_queue.queue[1].get();
     println!("---");
     new_queue.queue[2].get();
+
+    println!("---");
+    println!("{}", new_queue.dequeue());
 }
