@@ -52,7 +52,7 @@ impl QueueFatNode {
         }
     }
 }
-fn get_fat_queue(queue: &VecDeque<QueueFatNode>) {
+pub fn get_fat_queue(queue: &VecDeque<QueueFatNode>) {
     for val in queue {
         val.get();
     }
@@ -63,7 +63,7 @@ pub struct FCQueue {
     combined_pushed_items: Mutex<Vec<i32>>,
     current_timestamp: AtomicCell<u64>,
     comb_list_head: Mutex<VecDeque<Arc<CombiningNode>>>,
-    pub queue: Mutex<VecDeque<QueueFatNode>>,
+    queue: Mutex<VecDeque<QueueFatNode>>,
 }
 
 impl FCQueue {
