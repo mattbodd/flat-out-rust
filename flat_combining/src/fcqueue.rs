@@ -169,10 +169,11 @@ impl FCQueue {
     }
 
     fn doFlatCombining(&self, tid: i32) {
-        // Debugging
+        /* Debugging
         let mut profiler: Profiler =
             Profiler::new(None, ProfilerOutput::stdout, "doFlatCombining".to_string());
         profiler.start(tid);
+        */
 
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize = 0;
@@ -315,23 +316,26 @@ impl FCQueue {
             combining_round += 1;
             if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
                 // Debugging
-                profiler.end(tid);
+                //profiler.end(tid);
                 return;
             }
         }
     }
 
     fn link_in_combining(&self, cn: Arc<CombiningNode>, tid: i32) {
+        /* Debugging
         let mut profiler: Profiler = Profiler::new(
             None,
             ProfilerOutput::stdout,
             "link_in_combining_lock".to_string(),
         );
+         */
+
         // Block until we have access to the global `comb_list_head` at which point
         // we merge our thread local queue
-        profiler.start(tid);
+        //profiler.start(tid);
         let mut curr_comb_queue = self.comb_list_head.lock().unwrap();
-        profiler.end(tid);
+        //profiler.end(tid);
         curr_comb_queue.push_front(cn);
         //  Mutex is unlocked at end of scope
     }
