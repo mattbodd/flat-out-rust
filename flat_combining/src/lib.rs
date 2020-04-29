@@ -141,7 +141,7 @@ pub mod seq {
             queue.enqueue(elem, 0);
         }
 
-        profiler.stop(0);
+        profiler.end(0);
     }
 
     #[test]
