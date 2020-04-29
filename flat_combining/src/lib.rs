@@ -23,28 +23,136 @@ pub fn fc_test() {
     .unwrap();
 }
 
-mod tests {
+mod seq {
     use super::*;
+
+    static SOME_ELEMS: i32 = 10;
+    static MANY_ELEMS: i32 = 1_000_000;
 
     #[test]
     fn enqueue() {
         let queue = FCQueue::new();
-        queue.enqueue(1);
-        queue.enqueue(2);
-        queue.enqueue(3);
-        queue.enqueue(4);
+
+        // Enqueue `num_elems` elements
+        for elem in 0..SOME_ELEMS {
+            queue.enqueue(elem);
+        }
     }
 
     #[test]
-    fn dequeue() {
+    fn stress_enqueue() {
         let queue = FCQueue::new();
-        queue.enqueue(1);
-        queue.enqueue(2);
-        queue.enqueue(3);
-        queue.enqueue(4);
-        println!("dequeued: {}", queue.dequeue());
-        println!("dequeued: {}", queue.dequeue());
-        println!("dequeued: {}", queue.dequeue());
-        println!("dequeued: {}", queue.dequeue());
+
+        // Enqueue `num_elems` elements
+        for elem in 0..MANY_ELEMS {
+            queue.enqueue(elem);
+        }
     }
+
+    #[test]
+    fn flush() {
+        let queue = FCQueue::new();
+
+        // Enqueue `num_elems` elements
+        for elem in 0..SOME_ELEMS {
+            queue.enqueue(elem);
+        }
+
+        // Dequeue `num_elem` elements
+        for elem in 0..SOME_ELEMS {
+            queue.dequeue();
+        }
+    }
+
+    #[test]
+    fn stress_flush() {
+        let queue = FCQueue::new();
+
+        // Enqueue `num_elems` elements
+        for elem in 0..MANY_ELEMS {
+            queue.enqueue(elem);
+        }
+
+        // Dequeue `num_elem` elements
+        for elem in 0..MANY_ELEMS {
+            queue.dequeue();
+        }
+    }
+
+    #[test]
+    fn checked_flush() {
+        let queue = FCQueue::new();
+
+        // Enqueue `num_elems` elements
+        for elem in 0..SOME_ELEMS {
+            queue.enqueue(elem);
+        }
+
+        // Dequeue `num_elem` elements
+        for elem in 0..SOME_ELEMS {
+            assert_eq!(elem, queue.dequeue());
+        }
+    }
+
+    #[test]
+    fn stress_checked_flush() {
+        let queue = FCQueue::new();
+
+        // Enqueue `num_elems` elements
+        for elem in 0..MANY_ELEMS {
+            queue.enqueue(elem);
+        }
+
+        // Dequeue `num_elem` elements
+        for elem in 0..MANY_ELEMS {
+            assert_eq!(elem, queue.dequeue());
+        }
+    }
+
+    #[test]
+    fn varried_flush() {
+        let queue = FCQueue::new();
+    }
+
+    #[test]
+    fn stress_varried_flush() {
+        let queue = FCQueue::new();
+    }
+
+    #[test]
+    #[should_panic]
+    fn over_reach() {
+        let queue = FCQueue::new();
+
+        queue.dequeue();
+    }
+
+    #[test]
+    #[should_panic]
+    fn stress_over_read() {
+        let queue = FCQueue::new();
+
+        // Enqueue `num_elems` elements
+        for elem in 0..MANY_ELEMS {
+            queue.enqueue(elem);
+        }
+
+        // Dequeue `num_elem` elements
+        for elem in 0..MANY_ELEMS {
+            assert_eq!(elem, queue.dequeue());
+        }
+
+        // Overreaching!
+        queue.dequeue();
+    }
+}
+
+mod par {
+    use super::*;
+
+    #[test]
+    fn enqueue() {}
+
+    #[test]
+    fn dequeue() {}
 }
