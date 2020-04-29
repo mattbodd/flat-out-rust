@@ -133,10 +133,15 @@ pub mod seq {
     pub fn stress_enqueue() {
         let queue = FCQueue::new();
 
+        let mut profiler = Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+        profiler.start(0);
+
         // Enqueue `num_elems` elements
         for elem in 0..MANY_ELEMS {
             queue.enqueue(elem, 0);
         }
+
+        profiler.stop(0);
     }
 
     #[test]
