@@ -1,33 +1,20 @@
 mod fcqueue;
-pub mod seq_list;
-use crossbeam_utils::thread;
 use fcqueue::FCQueue;
-use std::sync::Arc;
+
+static SOME_ELEMS: i32 = 10;
+static MANY_ELEMS: i32 = 1_000_000;
 
 pub fn fc_test() {
     let queue = FCQueue::new();
 
-    let ten_millis = std::time::Duration::from_millis(100);
-
-    thread::scope(|s| {
-        let shared_queue = Arc::new(&queue);
-        for i in 0..4 {
-            let cloned_shared_queue = Arc::clone(&shared_queue);
-            s.spawn(move |_| {
-                cloned_shared_queue.enqueue(i);
-
-                //println!("dequeued: {}", cloned_shared_queue.dequeue());
-            });
-        }
-    })
-    .unwrap();
+    // Enqueue `num_elems` elements
+    for elem in 0..MANY_ELEMS {
+        queue.enqueue(elem);
+    }
 }
 
-mod seq {
+pub mod seq {
     use super::*;
-
-    static SOME_ELEMS: i32 = 10;
-    static MANY_ELEMS: i32 = 1_000_000;
 
     #[test]
     fn enqueue() {
@@ -40,7 +27,7 @@ mod seq {
     }
 
     #[test]
-    fn stress_enqueue() {
+    pub fn stress_enqueue() {
         let queue = FCQueue::new();
 
         // Enqueue `num_elems` elements
@@ -148,11 +135,32 @@ mod seq {
 }
 
 mod par {
+    use crossbeam_utils::thread;
+    use std::sync::Arc;
+
     use super::*;
 
-    #[test]
-    fn enqueue() {}
+    static NUM_THREADS: i32 = 4;
+    static ELEMS_PER_THREAD: i32 = MANY_ELEMS / NUM_THREADS;
 
     #[test]
-    fn dequeue() {}
+    fn stress_enqueue() {
+        let queue = FCQueue::new();
+
+        thread::scope(|s| {
+            let shared_queue = Arc::new(&queue);
+            for i in 0..NUM_THREADS {
+                let cloned_shared_queue = Arc::clone(&shared_queue);
+                s.spawn(move |_| {
+                    for elem in (i * ELEMS_PER_THREAD)..((i + 1) * ELEMS_PER_THREAD) {
+                        cloned_shared_queue.enqueue(elem);
+                    }
+                });
+            }
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn stress_flush() {}
 }
