@@ -6,7 +6,8 @@ use fcqueue::FCQueue;
 static SOME_ELEMS: i32 = 10;
 static MANY_ELEMS: i32 = 100_000;
 static NUM_THREADS: i32 = 4;
-static ELEMS_PER_THREAD: i32 = MANY_ELEMS / NUM_THREADS;
+static SOME_ELEMS_PER_THREAD: i32 = SOME_ELEMS / NUM_THREADS;
+static MANY_ELEMS_PER_THREAD: i32 = MANY_ELEMS / NUM_THREADS;
 
 pub fn fc_test() {
     let queue = FCQueue::new();
@@ -16,8 +17,8 @@ pub fn fc_test() {
         for i in 0..NUM_THREADS {
             let cloned_shared_queue = Arc::clone(&shared_queue);
             s.spawn(move |_| {
-                for elem in 0..ELEMS_PER_THREAD {
-                    cloned_shared_queue.enqueue(elem);
+                for elem in 0..MANY_ELEMS_PER_THREAD {
+                    cloned_shared_queue.enqueue(elem, i);
                 }
             });
         }
@@ -34,7 +35,7 @@ pub mod seq {
 
         // Enqueue `num_elems` elements
         for elem in 0..SOME_ELEMS {
-            queue.enqueue(elem);
+            queue.enqueue(elem, 0);
         }
     }
 
@@ -44,7 +45,7 @@ pub mod seq {
 
         // Enqueue `num_elems` elements
         for elem in 0..MANY_ELEMS {
-            queue.enqueue(elem);
+            queue.enqueue(elem, 0);
         }
     }
 
@@ -54,12 +55,12 @@ pub mod seq {
 
         // Enqueue `num_elems` elements
         for elem in 0..SOME_ELEMS {
-            queue.enqueue(elem);
+            queue.enqueue(elem, 0);
         }
 
         // Dequeue `num_elem` elements
         for elem in 0..SOME_ELEMS {
-            queue.dequeue();
+            queue.dequeue(0);
         }
     }
 
@@ -69,12 +70,12 @@ pub mod seq {
 
         // Enqueue `num_elems` elements
         for elem in 0..MANY_ELEMS {
-            queue.enqueue(elem);
+            queue.enqueue(elem, 0);
         }
 
         // Dequeue `num_elem` elements
         for elem in 0..MANY_ELEMS {
-            queue.dequeue();
+            queue.dequeue(0);
         }
     }
 
@@ -84,12 +85,12 @@ pub mod seq {
 
         // Enqueue `num_elems` elements
         for elem in 0..SOME_ELEMS {
-            queue.enqueue(elem);
+            queue.enqueue(elem, 0);
         }
 
         // Dequeue `num_elem` elements
         for elem in 0..SOME_ELEMS {
-            assert_eq!(elem, queue.dequeue());
+            assert_eq!(elem, queue.dequeue(0));
         }
     }
 
@@ -99,12 +100,12 @@ pub mod seq {
 
         // Enqueue `num_elems` elements
         for elem in 0..MANY_ELEMS {
-            queue.enqueue(elem);
+            queue.enqueue(elem, 0);
         }
 
         // Dequeue `num_elem` elements
         for elem in 0..MANY_ELEMS {
-            assert_eq!(elem, queue.dequeue());
+            assert_eq!(elem, queue.dequeue(0));
         }
     }
 
@@ -123,7 +124,7 @@ pub mod seq {
     fn over_reach() {
         let queue = FCQueue::new();
 
-        queue.dequeue();
+        queue.dequeue(0);
     }
 
     #[test]
@@ -133,21 +134,39 @@ pub mod seq {
 
         // Enqueue `num_elems` elements
         for elem in 0..MANY_ELEMS {
-            queue.enqueue(elem);
+            queue.enqueue(elem, 0);
         }
 
         // Dequeue `num_elem` elements
         for elem in 0..MANY_ELEMS {
-            assert_eq!(elem, queue.dequeue());
+            assert_eq!(elem, queue.dequeue(0));
         }
 
         // Overreaching!
-        queue.dequeue();
+        queue.dequeue(0);
     }
 }
 
 mod par {
     use super::*;
+
+    #[test]
+    fn enqueue() {
+        let queue = FCQueue::new();
+
+        thread::scope(|s| {
+            let shared_queue = Arc::new(&queue);
+            for i in 0..NUM_THREADS {
+                let cloned_shared_queue = Arc::clone(&shared_queue);
+                s.spawn(move |_| {
+                    for elem in (i * SOME_ELEMS_PER_THREAD)..((i + 1) * SOME_ELEMS_PER_THREAD) {
+                        cloned_shared_queue.enqueue(elem, i);
+                    }
+                });
+            }
+        })
+        .unwrap();
+    }
 
     #[test]
     fn stress_enqueue() {
@@ -158,8 +177,8 @@ mod par {
             for i in 0..NUM_THREADS {
                 let cloned_shared_queue = Arc::clone(&shared_queue);
                 s.spawn(move |_| {
-                    for elem in (i * ELEMS_PER_THREAD)..((i + 1) * ELEMS_PER_THREAD) {
-                        cloned_shared_queue.enqueue(elem);
+                    for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
+                        cloned_shared_queue.enqueue(elem, i);
                     }
                 });
             }
