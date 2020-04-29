@@ -1,5 +1,6 @@
 use crossbeam_utils::atomic::AtomicCell;
 use std::collections::VecDeque;
+use std::process;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -10,6 +11,96 @@ const COMBINING_NODE_TIMEOUT: u64 = 10000;
 const COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY: u64 = 100;
 const MAX_COMBINING_ROUNDS: u64 = 32;
 const NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY: u64 = 100;
+
+/* DEBUGGING START */
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(PartialEq)]
+enum ProfilerOutput {
+    stdout,
+    fileout,
+    all,
+}
+
+struct Profiler {
+    start_time: u128,
+    end_time: u128,
+    elapsed_time: u128,
+    target_thread: Option<i32>,
+    output_type: ProfilerOutput,
+    func_name: String,
+}
+
+// A profiler keeps track of which threads it is monitoring as well as
+impl Profiler {
+    fn new(target_thread: Option<i32>, output_type: ProfilerOutput, func_name: String) -> Profiler {
+        Profiler {
+            start_time: 0,
+            end_time: 0,
+            elapsed_time: 0,
+            target_thread,
+            output_type,
+            func_name,
+        }
+    }
+
+    fn log(&self, state: &str, arriving_thread: i32) {
+        match self.target_thread {
+            Some(tid) => {
+                if arriving_thread == tid {
+                    if self.output_type == ProfilerOutput::stdout {
+                        println!(
+                            "Thread {} {} {}: {}",
+                            arriving_thread,
+                            state,
+                            self.func_name,
+                            SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_nanos()
+                        );
+                    }
+                }
+            }
+            None => {
+                if self.output_type == ProfilerOutput::stdout {
+                    println!(
+                        "Thread {} {} {}: {}",
+                        arriving_thread,
+                        state,
+                        self.func_name,
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_nanos()
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn start(&mut self, arriving_thread: i32) {
+        //self.log("starting", arriving_thread);
+        self.start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+    }
+
+    pub fn end(&mut self, arriving_thread: i32) {
+        self.end_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        self.elapsed_time = self.end_time - self.start_time;
+        println!(
+            "{},{}:{}",
+            arriving_thread, self.func_name, self.elapsed_time
+        );
+        //self.log("ending", arriving_thread);
+    }
+}
+/* DEBUGGING END */
 
 struct CombiningNode {
     is_linked: AtomicCell<bool>,
@@ -77,7 +168,12 @@ impl FCQueue {
         }
     }
 
-    fn doFlatCombining(&self) {
+    fn doFlatCombining(&self, tid: i32) {
+        // Debugging
+        let mut profiler: Profiler =
+            Profiler::new(None, ProfilerOutput::stdout, "doFlatCombining".to_string());
+        profiler.start(tid);
+
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize = 0;
         let mut curr_comb_node: VecDeque<Arc<CombiningNode>>;
@@ -177,7 +273,9 @@ impl FCQueue {
                     self.combined_pushed_items[num_pushed_items] =
                         curr_comb_node.front().unwrap().item.load().unwrap();
                      */
-                    self.combined_pushed_items.lock().unwrap()
+                    self.combined_pushed_items
+                        .lock()
+                        .unwrap()
                         .push(curr_comb_node.front().unwrap().item.load().unwrap());
 
                     num_pushed_items += 1;
@@ -200,27 +298,41 @@ impl FCQueue {
                 assert!(num_pushed_items < MAX_THREADS);
 
                 new_node.items_left = num_pushed_items;
-                new_node.items = self.combined_pushed_items.lock().unwrap().drain(..).collect();
+                new_node.items = self
+                    .combined_pushed_items
+                    .lock()
+                    .unwrap()
+                    .drain(..)
+                    .collect();
 
                 self.queue.lock().unwrap().push_back(new_node);
             }
 
             combining_round += 1;
             if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
+                // Debugging
+                profiler.end(tid);
                 return;
             }
         }
     }
 
-    fn link_in_combining(&self, cn: Arc<CombiningNode>) {
+    fn link_in_combining(&self, cn: Arc<CombiningNode>, tid: i32) {
+        let mut profiler: Profiler = Profiler::new(
+            None,
+            ProfilerOutput::stdout,
+            "link_in_combining_lock".to_string(),
+        );
         // Block until we have access to the global `comb_list_head` at which point
         // we merge our thread local queue
+        profiler.start(tid);
         let mut curr_comb_queue = self.comb_list_head.lock().unwrap();
+        profiler.end(tid);
         curr_comb_queue.push_front(cn);
         //  Mutex is unlocked at end of scope
     }
 
-    fn wait_until_fulfilled(&self, shared_comb_node: Arc<CombiningNode>) {
+    fn wait_until_fulfilled(&self, shared_comb_node: Arc<CombiningNode>, tid: i32) {
         let mut rounds = 0;
 
         //let shared_comb_node: Arc<CombiningNode> = Arc::new(comb_node);
@@ -230,7 +342,7 @@ impl FCQueue {
                 && !shared_comb_node.is_linked.load()
             {
                 shared_comb_node.is_linked.store(true);
-                self.link_in_combining(Arc::clone(&shared_comb_node));
+                self.link_in_combining(Arc::clone(&shared_comb_node), tid);
             }
 
             if self.fc_lock.load(Ordering::Relaxed) == 0 {
@@ -238,7 +350,7 @@ impl FCQueue {
                     self.fc_lock
                         .compare_exchange(0, 1, Ordering::Acquire, Ordering::Relaxed);
                 if cae.is_ok() {
-                    self.doFlatCombining();
+                    self.doFlatCombining(tid);
                     self.fc_lock.store(0, Ordering::Relaxed);
                 }
 
@@ -251,7 +363,7 @@ impl FCQueue {
         }
     }
 
-    pub fn enqueue(&self, val: i32) -> bool {
+    pub fn enqueue(&self, val: i32, tid: i32) -> bool {
         let combining_node: CombiningNode = CombiningNode::new();
 
         combining_node.is_consumer.store(false);
@@ -260,12 +372,12 @@ impl FCQueue {
         combining_node.is_request_valid.store(true);
 
         let shared_comb_node: Arc<CombiningNode> = Arc::new(combining_node);
-        self.wait_until_fulfilled(Arc::clone(&shared_comb_node));
+        self.wait_until_fulfilled(Arc::clone(&shared_comb_node), tid);
 
         true
     }
 
-    pub fn dequeue(&self) -> i32 {
+    pub fn dequeue(&self, tid: i32) -> i32 {
         let combining_node: CombiningNode = CombiningNode::new();
 
         combining_node.is_consumer.store(true);
@@ -273,7 +385,7 @@ impl FCQueue {
         combining_node.is_request_valid.store(true);
 
         let shared_comb_node: Arc<CombiningNode> = Arc::new(combining_node);
-        self.wait_until_fulfilled(Arc::clone(&shared_comb_node));
+        self.wait_until_fulfilled(Arc::clone(&shared_comb_node), tid);
 
         return shared_comb_node.item.load().unwrap();
     }
