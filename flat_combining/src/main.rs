@@ -1,11 +1,5 @@
-
-
-
 fn main() {
-
-	
-    
-	flat_combining::fc_test();
+    flat_combining::fc_test();
     // new_queue.enqueue(3);
     // new_queue.enqueue(4);
     // new_queue.enqueue(5);
@@ -22,5 +16,3 @@ fn main() {
     // println!("{}", new_queue.dequeue());
     // println!("{}", new_queue.dequeue());
 }
-
-
