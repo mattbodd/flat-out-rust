@@ -199,8 +199,10 @@ impl FCQueue {
                 };
 
             {
-                curr_comb_node = self.comb_list_head.lock().unwrap().clone();
-                self.comb_list_head.lock().unwrap().clear();
+                let mut unlocked = self.comb_list_head.lock().unwrap();
+                curr_comb_node = unlocked.clone();
+                unlocked.clear();
+                //self.comb_list_head.lock().unwrap().clear();
                 //curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
             }
 
