@@ -283,13 +283,15 @@ mod par {
             for i in 0..NUM_THREADS {
                 let cloned_shared_queue = Arc::clone(&shared_queue);
                 s.spawn(move |_| {
+                    let mut profiler =
+                        Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+                    profiler.start(i);
+
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
-                        let mut profiler =
-                            Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
-                        profiler.start(i);
                         cloned_shared_queue.enqueue(elem, i);
-                        profiler.end(i);
                     }
+
+                    profiler.end(i);
                 });
             }
         })
