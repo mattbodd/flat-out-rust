@@ -178,7 +178,7 @@ impl FCQueue {
         let mut num_pushed_items: usize = 0;
         let mut curr_comb_node: VecDeque<Arc<CombiningNode>>;
         {
-            curr_comb_node = self.comb_list_head.lock().unwrap().clone();
+            curr_comb_node = VecDeque::new(); //self.comb_list_head.lock().unwrap().clone();
         }
 
         self.current_timestamp.fetch_add(1);
