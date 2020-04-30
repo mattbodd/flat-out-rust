@@ -169,11 +169,11 @@ impl FCQueue {
     }
 
     fn doFlatCombining(&self, tid: i32) {
-        /* Debugging */
+        /* Debugging
         let mut do_flat_profiler: Profiler =
             Profiler::new(None, ProfilerOutput::stdout, "doFlatCombining".to_string());
         do_flat_profiler.start(tid);
-        /**/
+        */
 
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize = 0;
@@ -363,7 +363,7 @@ impl FCQueue {
             combining_round += 1;
             if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
                 // Debugging
-                do_flat_profiler.end(tid);
+                //do_flat_profiler.end(tid);
                 return;
             }
         }
