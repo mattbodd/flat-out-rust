@@ -153,7 +153,7 @@ pub fn get_fat_queue(queue: &VecDeque<QueueFatNode>) {
 pub struct FCQueue {
     fc_lock: AtomicUsize,
     combined_pushed_items: Mutex<Vec<i32>>,
-    current_timestamp: AtomicCell<u64>,
+    current_timestamp: AtomicU64,
     comb_list_head: Mutex<VecDeque<Arc<CombiningNode>>>,
     queue: Mutex<VecDeque<QueueFatNode>>,
 }
@@ -163,7 +163,7 @@ impl FCQueue {
         FCQueue {
             fc_lock: AtomicUsize::new(0),
             combined_pushed_items: Mutex::new(vec![0; MAX_THREADS]),
-            current_timestamp: AtomicCell::new(0),
+            current_timestamp: AtomicU64::new(0),
             comb_list_head: Mutex::new(VecDeque::new()),
             queue: Mutex::new(VecDeque::new()),
         }
@@ -183,8 +183,8 @@ impl FCQueue {
             curr_comb_node = VecDeque::new(); //self.comb_list_head.lock().unwrap().clone();
         }
 
-        self.current_timestamp.fetch_add(1);
-        let local_current_timestamp: u64 = self.current_timestamp.load();
+        self.current_timestamp.fetch_add(1, Ordering::Relaxed);
+        let local_current_timestamp: u64 = self.current_timestamp.load(Ordering::Relaxed);
 
         let check_timestamps: bool =
             local_current_timestamp % COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY == 0;
