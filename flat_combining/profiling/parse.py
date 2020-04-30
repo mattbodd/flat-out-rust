@@ -52,6 +52,6 @@ for _file in files:
                 all_thread_avg += avg
 
                 # print("{" + _id + "} " + func + ": " + str(avg/total) + "ns | " + str(total) + " times")
-            print(func + " avg: " + str(all_thread_avg/all_total) + "ns | " + str(all_thread_avg) + " times")
-            print(func + " max: " + str(max_thread_time) + "ns | " + str(all_thread_avg) + " times")
+            print(func + " avg: " + str(all_thread_avg/all_total) + "ns | " + str(all_total) + " times")
+            print(func + " max: " + str(max_thread_time) + "ns | " + str(all_total) + " times")
         runtimes = {}
