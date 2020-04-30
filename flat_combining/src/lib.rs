@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(non_camel_case_types)]
+#![allow(unused_imports)]
+
 use crossbeam_utils::thread;
 use std::sync::Arc;
 mod fcqueue;
@@ -15,8 +20,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(PartialEq)]
 enum ProfilerOutput {
     stdout,
-    fileout,
-    all,
 }
 
 struct Profiler {

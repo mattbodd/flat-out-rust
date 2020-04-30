@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 fn main() {
     flat_combining::fc_test();
     // new_queue.enqueue(3);

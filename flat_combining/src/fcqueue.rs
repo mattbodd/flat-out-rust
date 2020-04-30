@@ -1,9 +1,8 @@
 use crossbeam_utils::atomic::AtomicCell;
 use std::collections::VecDeque;
-use std::process;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 
 // Global namespace
@@ -19,8 +18,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(PartialEq)]
 enum ProfilerOutput {
     stdout,
-    fileout,
-    all,
 }
 
 struct Profiler {
@@ -169,6 +166,7 @@ impl FCQueue {
         }
     }
 
+    #[allow(non_snake_case)]
     fn doFlatCombining(&self, tid: i32) {
         /* Debugging
         let mut do_flat_profiler: Profiler =
@@ -177,11 +175,13 @@ impl FCQueue {
         */
 
         let mut combining_round: u64 = 0;
-        let mut num_pushed_items: usize = 0;
+        let mut num_pushed_items: usize;
         let mut curr_comb_node: VecDeque<Arc<CombiningNode>>;
+        /*
         {
             curr_comb_node = VecDeque::new(); //self.comb_list_head.lock().unwrap().clone();
         }
+         */
 
         self.current_timestamp.fetch_add(1, Ordering::Relaxed);
         let local_current_timestamp: u64 = self.current_timestamp.load(Ordering::Relaxed);
@@ -189,7 +189,7 @@ impl FCQueue {
         let check_timestamps: bool =
             local_current_timestamp % COMBINING_NODE_TIMEOUT_CHECK_FREQUENCY == 0;
 
-        let mut have_work: bool = false;
+        let mut have_work: bool;
 
         loop {
             num_pushed_items = 0;
