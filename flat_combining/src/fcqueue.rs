@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use std::process;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64};
 use std::sync::{Arc, Mutex};
 
 // Global namespace
@@ -108,7 +108,7 @@ struct CombiningNode {
     last_request_timestamp: AtomicU64,
     is_request_valid: AtomicBool,
     is_consumer: AtomicBool,
-    item: AtomicCell<Option<i32>>,
+    item: AtomicI32,
 }
 
 impl CombiningNode {
@@ -119,7 +119,7 @@ impl CombiningNode {
             last_request_timestamp: AtomicU64::new(0),
             is_request_valid: AtomicBool::new(false),
             is_consumer: AtomicBool::new(false),
-            item: AtomicCell::new(None),
+            item: AtomicI32::new(-1),
         }
     }
 }
@@ -293,11 +293,17 @@ impl FCQueue {
 
                             //queue_profiler.end(tid);
 
-                            curr_comb_node
-                                .front()
-                                .unwrap()
-                                .item
-                                .store(self.queue.lock().unwrap().front_mut().unwrap().items.pop());
+                            curr_comb_node.front().unwrap().item.store(
+                                self.queue
+                                    .lock()
+                                    .unwrap()
+                                    .front_mut()
+                                    .unwrap()
+                                    .items
+                                    .pop()
+                                    .unwrap(),
+                                Ordering::Relaxed,
+                            );
                             consumer_satisfied = true;
                         }
                     }
@@ -314,9 +320,10 @@ impl FCQueue {
                         curr_comb_add_profiler.start(tid);
                         */
 
-                        curr_comb_node.front().unwrap().item.store(Some(
+                        curr_comb_node.front().unwrap().item.store(
                             self.combined_pushed_items.lock().unwrap()[num_pushed_items],
-                        ));
+                            Ordering::Relaxed,
+                        );
 
                         //curr_comb_add_profiler.end(tid);
 
@@ -324,7 +331,11 @@ impl FCQueue {
                     }
 
                     if !consumer_satisfied {
-                        curr_comb_node.front().unwrap().item.store(None);
+                        curr_comb_node
+                            .front()
+                            .unwrap()
+                            .item
+                            .store(-1, Ordering::Relaxed);
                     }
                 } else {
                     /* Debugging
@@ -338,7 +349,7 @@ impl FCQueue {
 
                     // Old
                     self.combined_pushed_items.lock().unwrap()[num_pushed_items] =
-                        curr_comb_node.front().unwrap().item.load().unwrap();
+                        curr_comb_node.front().unwrap().item.load(Ordering::Relaxed);
 
                     //combined_pushed_add_profiler.end(tid);
 
@@ -437,7 +448,7 @@ impl FCQueue {
         let combining_node: CombiningNode = CombiningNode::new();
 
         combining_node.is_consumer.store(false, Ordering::Relaxed);
-        combining_node.item.store(Some(val));
+        combining_node.item.store(val, Ordering::Relaxed);
 
         combining_node
             .is_request_valid
@@ -461,6 +472,6 @@ impl FCQueue {
         let shared_comb_node: Arc<CombiningNode> = Arc::new(combining_node);
         self.wait_until_fulfilled(Arc::clone(&shared_comb_node), tid);
 
-        return shared_comb_node.item.load().unwrap();
+        return shared_comb_node.item.load(Ordering::Relaxed);
     }
 }
