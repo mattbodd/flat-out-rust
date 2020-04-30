@@ -4,7 +4,7 @@
 #![allow(unused_imports)]
 
 use crossbeam_utils::thread;
-use crossbeam_queue::MsQueue;
+use crossbeam::queue::MsQueue;
 use std::sync::Arc;
 mod fcqueue;
 use fcqueue::FCQueue;
@@ -375,7 +375,7 @@ mod par {
                     profiler.start(i);
 
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
-                        cloned_shared_queue.pop(elem);
+                        cloned_shared_queue.pop();
                     }
 
                     profiler.end(i);
@@ -387,7 +387,7 @@ mod par {
     }
 
     #[test]
-    fn msqueue_enqueue_dequeue(){
+    fn ms_enqueue_dequeue(){
     	let queue = MsQueue::new();
         thread::scope(|s| {
             let shared_queue = Arc::new(&queue);
@@ -400,7 +400,7 @@ mod par {
 
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
                     	cloned_shared_queue.push(elem);
-                        cloned_shared_queue.pop(elem);
+                        cloned_shared_queue.pop();
                     }
 
                     profiler.end(i);
