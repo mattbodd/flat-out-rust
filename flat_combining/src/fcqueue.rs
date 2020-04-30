@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::process;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 
 // Global namespace
@@ -103,10 +104,10 @@ impl Profiler {
 /* DEBUGGING END */
 
 struct CombiningNode {
-    is_linked: AtomicCell<bool>,
-    last_request_timestamp: AtomicCell<u64>,
-    is_request_valid: AtomicCell<bool>,
-    is_consumer: AtomicCell<bool>,
+    is_linked: AtomicBool,
+    last_request_timestamp: AtomicU64,
+    is_request_valid: AtomicBool,
+    is_consumer: AtomicBool,
     item: AtomicCell<Option<i32>>,
 }
 
@@ -114,10 +115,10 @@ impl CombiningNode {
     fn new() -> CombiningNode {
         // TODO: How to initiailize additional fields
         CombiningNode {
-            is_linked: AtomicCell::new(false),
-            last_request_timestamp: AtomicCell::new(0),
-            is_request_valid: AtomicCell::new(false),
-            is_consumer: AtomicCell::new(false),
+            is_linked: AtomicBool::new(false),
+            last_request_timestamp: AtomicU64::new(0),
+            is_request_valid: AtomicBool::new(false),
+            is_consumer: AtomicBool::new(false),
             item: AtomicCell::new(None),
         }
     }
@@ -229,7 +230,12 @@ impl FCQueue {
             have_work = false;
 
             while !curr_comb_node.is_empty() {
-                if !curr_comb_node.front().unwrap().is_request_valid.load() {
+                if !curr_comb_node
+                    .front()
+                    .unwrap()
+                    .is_request_valid
+                    .load(Ordering::Relaxed)
+                {
                     // Unsure if `as_ref` gives us a reference that can actually
                     // be compared with `curr_comb_node.front().unwrap()`
                     if check_timestamps
@@ -242,11 +248,15 @@ impl FCQueue {
                                 .front()
                                 .unwrap()
                                 .last_request_timestamp
-                                .load())
+                                .load(Ordering::Relaxed))
                             > COMBINING_NODE_TIMEOUT)
                     {
                         println!("Reaching uncertain condition");
-                        curr_comb_node.front().unwrap().is_linked.store(false);
+                        curr_comb_node
+                            .front()
+                            .unwrap()
+                            .is_linked
+                            .store(false, Ordering::Relaxed);
                     }
 
                     curr_comb_node.pop_front();
@@ -259,9 +269,14 @@ impl FCQueue {
                     .front()
                     .unwrap()
                     .last_request_timestamp
-                    .store(local_current_timestamp);
+                    .store(local_current_timestamp, Ordering::Relaxed);
 
-                if curr_comb_node.front().unwrap().is_consumer.load() {
+                if curr_comb_node
+                    .front()
+                    .unwrap()
+                    .is_consumer
+                    .load(Ordering::Relaxed)
+                {
                     let mut consumer_satisfied: bool = false;
 
                     while !self.queue.lock().unwrap().is_empty() && !consumer_satisfied {
@@ -341,7 +356,7 @@ impl FCQueue {
                     .front()
                     .unwrap()
                     .is_request_valid
-                    .store(false);
+                    .store(false, Ordering::Relaxed);
 
                 curr_comb_node.pop_front();
             }
@@ -394,9 +409,9 @@ impl FCQueue {
 
         loop {
             if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0)
-                && !shared_comb_node.is_linked.load()
+                && !shared_comb_node.is_linked.load(Ordering::Relaxed)
             {
-                shared_comb_node.is_linked.store(true);
+                shared_comb_node.is_linked.store(true, Ordering::Relaxed);
                 self.link_in_combining(Arc::clone(&shared_comb_node), tid);
             }
 
@@ -409,7 +424,7 @@ impl FCQueue {
                     self.fc_lock.store(0, Ordering::Relaxed);
                 }
 
-                if !shared_comb_node.is_request_valid.load() {
+                if !shared_comb_node.is_request_valid.load(Ordering::Relaxed) {
                     break;
                 }
 
@@ -421,10 +436,12 @@ impl FCQueue {
     pub fn enqueue(&self, val: i32, tid: i32) -> bool {
         let combining_node: CombiningNode = CombiningNode::new();
 
-        combining_node.is_consumer.store(false);
+        combining_node.is_consumer.store(false, Ordering::Relaxed);
         combining_node.item.store(Some(val));
 
-        combining_node.is_request_valid.store(true);
+        combining_node
+            .is_request_valid
+            .store(true, Ordering::Relaxed);
 
         let shared_comb_node: Arc<CombiningNode> = Arc::new(combining_node);
         self.wait_until_fulfilled(Arc::clone(&shared_comb_node), tid);
@@ -435,9 +452,11 @@ impl FCQueue {
     pub fn dequeue(&self, tid: i32) -> i32 {
         let combining_node: CombiningNode = CombiningNode::new();
 
-        combining_node.is_consumer.store(true);
+        combining_node.is_consumer.store(true, Ordering::Relaxed);
 
-        combining_node.is_request_valid.store(true);
+        combining_node
+            .is_request_valid
+            .store(true, Ordering::Relaxed);
 
         let shared_comb_node: Arc<CombiningNode> = Arc::new(combining_node);
         self.wait_until_fulfilled(Arc::clone(&shared_comb_node), tid);
