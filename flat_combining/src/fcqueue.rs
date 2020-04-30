@@ -454,7 +454,7 @@ impl FCQueue {
                 rounds += 1;
             }
         }
-        profiler::end(tid);
+        profiler.end(tid);
     }
 
     pub fn enqueue(&self, val: i32, tid: i32) -> bool {
