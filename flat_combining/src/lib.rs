@@ -307,6 +307,33 @@ mod par {
         .unwrap();
     }
     #[test]
+    fn stress_dequeue() {
+        let queue = FCQueue::new();
+
+        for elem in 0..MANY_ELEMS{
+    		queue.enqueue(elem, 0);
+    	}
+
+        thread::scope(|s| {
+            let shared_queue = Arc::new(&queue);
+            for i in 0..NUM_THREADS {
+                let cloned_shared_queue = Arc::clone(&shared_queue);
+                s.spawn(move |_| {
+                    let mut profiler =
+                        Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+                    profiler.start(i);
+
+                    for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
+                        cloned_shared_queue.dequeue(elem, i);
+                    }
+
+                    profiler.end(i);
+                });
+            }
+        })
+        .unwrap();
+    }
+    #[test]
     fn msqueue_enqueue(){
     	let queue = MsQueue::new();
 
