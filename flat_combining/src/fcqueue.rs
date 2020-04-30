@@ -308,9 +308,18 @@ impl FCQueue {
                         curr_comb_node.front().unwrap().item.store(None);
                     }
                 } else {
+                    let mut combined_pushed_add_profiler: Profiler = Profiler::new(
+                        None,
+                        ProfilerOutput::stdout,
+                        "combined_pushed_items_add".to_string(),
+                    );
+                    combined_pushed_add_profiler.start(tid);
+
                     // Old
                     self.combined_pushed_items.lock().unwrap()[num_pushed_items] =
                         curr_comb_node.front().unwrap().item.load().unwrap();
+
+                    combined_pushed_add_profiler.end(tid);
 
                     /*
                     self.combined_pushed_items
