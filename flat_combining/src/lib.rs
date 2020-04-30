@@ -324,7 +324,7 @@ mod par {
                     profiler.start(i);
 
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
-                        cloned_shared_queue.dequeue(elem, i);
+                        cloned_shared_queue.dequeue(i);
                     }
 
                     profiler.end(i);
@@ -347,7 +347,7 @@ mod par {
                     profiler.start(i);
 
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
-                        cloned_shared_queue.push(elem, i);
+                        cloned_shared_queue.push(elem);
                     }
 
                     profiler.end(i);
@@ -362,7 +362,7 @@ mod par {
     	let queue = MsQueue::new();
 
     	for elem in 0..MANY_ELEMS{
-    		queue.push(elem, 0);
+    		queue.push(elem);
     	}
 
         thread::scope(|s| {
@@ -375,7 +375,7 @@ mod par {
                     profiler.start(i);
 
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
-                        cloned_shared_queue.pop(elem, i);
+                        cloned_shared_queue.pop(elem);
                     }
 
                     profiler.end(i);
@@ -399,8 +399,8 @@ mod par {
                     profiler.start(i);
 
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
-                    	cloned_shared_queue.push(elem, i);
-                        cloned_shared_queue.pop(elem, i);
+                    	cloned_shared_queue.push(elem);
+                        cloned_shared_queue.pop(elem);
                     }
 
                     profiler.end(i);
