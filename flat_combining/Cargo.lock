@@ -188,6 +188,7 @@ name = "flat_combining"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "crossbeam-queue",
  "crossbeam-utils",
 ]
 

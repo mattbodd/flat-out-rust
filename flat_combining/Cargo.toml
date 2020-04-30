@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 crossbeam-utils = "*"
+crossbeam-queue = "*"
 
 [dev-dependencies]
 criterion="*"
