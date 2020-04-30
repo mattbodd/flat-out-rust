@@ -218,7 +218,18 @@ impl FCQueue {
                 //curr_comb_node = unlocked.clone();
                 //unlocked.clear();
                 //self.comb_list_head.lock().unwrap().clear();
+                let backoff = Backoff::new();
+                while self
+                    .curr_comb_held
+                    .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_err()
+                {
+                    backoff.snooze();
+                }
+
                 curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
+
+                self.curr_comb_held.store(false, Ordering::Relaxed);
             }
 
             let mut orig_comb_list_head: Option<Arc<CombiningNode>> = None;
