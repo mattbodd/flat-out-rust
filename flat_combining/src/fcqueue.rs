@@ -193,13 +193,14 @@ impl FCQueue {
         loop {
             num_pushed_items = 0;
 
-            /* Debugging */
+            /* Debugging
             let mut orig_comb_profiler: Profiler = Profiler::new(
                 None,
                 ProfilerOutput::stdout,
                 "orig_comb_list_head".to_string(),
             );
             orig_comb_profiler.start(tid);
+            */
 
             let orig_comb_list_head: Option<Arc<CombiningNode>> =
                 match self.comb_list_head.lock().unwrap().front() {
@@ -207,12 +208,13 @@ impl FCQueue {
                     None => None,
                 };
 
-            orig_comb_profiler.end(tid);
+            //orig_comb_profiler.end(tid);
 
-            /* Debugging */
+            /* Debugging
             let mut curr_comb_profiler: Profiler =
                 Profiler::new(None, ProfilerOutput::stdout, "curr_comb_node".to_string());
             curr_comb_profiler.start(tid);
+            */
 
             {
                 //let mut unlocked = self.comb_list_head.lock().unwrap();
@@ -222,7 +224,7 @@ impl FCQueue {
                 curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
             }
 
-            curr_comb_profiler.end(tid);
+            //curr_comb_profiler.end(tid);
 
             have_work = false;
 
@@ -266,14 +268,15 @@ impl FCQueue {
                         if self.queue.lock().unwrap().front().unwrap().items_left == 0 {
                             self.queue.lock().unwrap().pop_front();
                         } else {
-                            /* Debugging */
+                            /* Debugging
                             let mut queue_profiler: Profiler =
                                 Profiler::new(None, ProfilerOutput::stdout, "queue".to_string());
                             queue_profiler.start(tid);
+                            */
 
                             self.queue.lock().unwrap().front_mut().unwrap().items_left -= 1;
 
-                            queue_profiler.end(tid);
+                            //queue_profiler.end(tid);
 
                             curr_comb_node
                                 .front()
@@ -287,19 +290,20 @@ impl FCQueue {
                     if !consumer_satisfied && (num_pushed_items > 0) {
                         num_pushed_items -= 1;
 
-                        /* Debugging */
+                        /* Debugging
                         let mut curr_comb_add_profiler: Profiler = Profiler::new(
                             None,
                             ProfilerOutput::stdout,
                             "orig_comb_list_head".to_string(),
                         );
                         curr_comb_add_profiler.start(tid);
+                        */
 
                         curr_comb_node.front().unwrap().item.store(Some(
                             self.combined_pushed_items.lock().unwrap()[num_pushed_items],
                         ));
 
-                        curr_comb_add_profiler.end(tid);
+                        //curr_comb_add_profiler.end(tid);
 
                         consumer_satisfied = true;
                     }
@@ -308,9 +312,20 @@ impl FCQueue {
                         curr_comb_node.front().unwrap().item.store(None);
                     }
                 } else {
+                    /* Debugging
+                    let mut combined_pushed_add_profiler: Profiler = Profiler::new(
+                        None,
+                        ProfilerOutput::stdout,
+                        "combined_pushed_items_add".to_string(),
+                    );
+                    combined_pushed_add_profiler.start(tid);
+                     */
+
                     // Old
                     self.combined_pushed_items.lock().unwrap()[num_pushed_items] =
                         curr_comb_node.front().unwrap().item.load().unwrap();
+
+                    //combined_pushed_add_profiler.end(tid);
 
                     /*
                     self.combined_pushed_items
