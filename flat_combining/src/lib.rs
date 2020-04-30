@@ -10,7 +10,7 @@ use fcqueue::FCQueue;
 
 static SOME_ELEMS: i32 = 10;
 static MANY_ELEMS: i32 = 100_000;
-static NUM_THREADS: i32 = 4;
+static NUM_THREADS: i32 = 32;
 static SOME_ELEMS_PER_THREAD: i32 = SOME_ELEMS / NUM_THREADS;
 static MANY_ELEMS_PER_THREAD: i32 = MANY_ELEMS / NUM_THREADS;
 
