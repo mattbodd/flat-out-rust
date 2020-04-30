@@ -161,7 +161,7 @@ impl FCQueue {
     pub fn new() -> FCQueue {
         FCQueue {
             fc_lock: AtomicUsize::new(0),
-            combined_pushed_items: Mutex::new(Vec::new()),
+            combined_pushed_items: Mutex::new(vec![0; MAX_THREADS]),
             current_timestamp: AtomicCell::new(0),
             comb_list_head: Mutex::new(VecDeque::new()),
             queue: Mutex::new(VecDeque::new()),
@@ -261,11 +261,9 @@ impl FCQueue {
 
                     if !consumer_satisfied && (num_pushed_items > 0) {
                         num_pushed_items -= 1;
-                        curr_comb_node
-                            .front()
-                            .unwrap()
-                            .item
-                            .store(self.combined_pushed_items.lock().unwrap().pop());
+                        curr_comb_node.front().unwrap().item.store(Some(
+                            self.combined_pushed_items.lock().unwrap()[num_pushed_items],
+                        ));
                         consumer_satisfied = true;
                     }
 
@@ -274,14 +272,15 @@ impl FCQueue {
                     }
                 } else {
                     // Old
-                    /*
-                    self.combined_pushed_items[num_pushed_items] =
+                    self.combined_pushed_items.lock().unwrap()[num_pushed_items] =
                         curr_comb_node.front().unwrap().item.load().unwrap();
-                     */
+
+                    /*
                     self.combined_pushed_items
                         .lock()
                         .unwrap()
                         .push(curr_comb_node.front().unwrap().item.load().unwrap());
+                     */
 
                     num_pushed_items += 1;
                 }
@@ -303,12 +302,8 @@ impl FCQueue {
                 assert!(num_pushed_items < MAX_THREADS);
 
                 new_node.items_left = num_pushed_items;
-                new_node.items = self
-                    .combined_pushed_items
-                    .lock()
-                    .unwrap()
-                    .drain(..)
-                    .collect();
+                new_node.items =
+                    self.combined_pushed_items.lock().unwrap()[0..num_pushed_items].to_vec();
 
                 self.queue.lock().unwrap().push_back(new_node);
             }
