@@ -204,12 +204,6 @@ impl FCQueue {
             orig_comb_profiler.start(tid);
             */
 
-            let orig_comb_list_head: Option<Arc<CombiningNode>> =
-                match self.comb_list_head.lock().unwrap().front() {
-                    Some(head) => Some(Arc::clone(head)),
-                    None => None,
-                };
-
             //orig_comb_profiler.end(tid);
 
             /* Debugging
@@ -217,13 +211,27 @@ impl FCQueue {
                 Profiler::new(None, ProfilerOutput::stdout, "curr_comb_node".to_string());
             curr_comb_profiler.start(tid);
             */
-
             {
                 //let mut unlocked = self.comb_list_head.lock().unwrap();
                 //curr_comb_node = unlocked.clone();
                 //unlocked.clear();
                 //self.comb_list_head.lock().unwrap().clear();
                 curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
+            }
+
+            let mut orig_comb_list_head: Option<Arc<CombiningNode>> = None;
+
+            if !curr_comb_node.is_empty()
+                && !curr_comb_node
+                    .front()
+                    .unwrap()
+                    .is_request_valid
+                    .load(Ordering::Relaxed)
+            {
+                orig_comb_list_head = match curr_comb_node.front() {
+                    Some(head) => Some(Arc::clone(head)),
+                    None => None,
+                };
             }
 
             //curr_comb_profiler.end(tid);
