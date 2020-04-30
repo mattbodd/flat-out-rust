@@ -152,7 +152,6 @@ pub struct FCQueue {
     fc_lock: AtomicUsize,
     combined_pushed_items: ArrayQueue<i32>,
     current_timestamp: AtomicU64,
-    curr_comb_held: AtomicBool,
     comb_list_head: Mutex<VecDeque<Arc<CombiningNode>>>,
     queue: Mutex<VecDeque<QueueFatNode>>,
 }
@@ -163,7 +162,6 @@ impl FCQueue {
             fc_lock: AtomicUsize::new(0),
             combined_pushed_items: ArrayQueue::<i32>::new(MAX_THREADS),
             current_timestamp: AtomicU64::new(0),
-            curr_comb_held: AtomicBool::new(false),
             comb_list_head: Mutex::new(VecDeque::new()),
             queue: Mutex::new(VecDeque::new()),
         }
@@ -218,18 +216,7 @@ impl FCQueue {
                 //curr_comb_node = unlocked.clone();
                 //unlocked.clear();
                 //self.comb_list_head.lock().unwrap().clear();
-                let backoff = Backoff::new();
-                while self
-                    .curr_comb_held
-                    .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-                    .is_err()
-                {
-                    backoff.snooze();
-                }
-
                 curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
-
-                self.curr_comb_held.store(false, Ordering::Relaxed);
             }
 
             let mut orig_comb_list_head: Option<Arc<CombiningNode>> = None;
@@ -424,21 +411,10 @@ impl FCQueue {
         // Block until we have access to the global `comb_list_head` at which point
         // we merge our thread local queue
         //profiler.start(tid);
-        let backoff = Backoff::new();
-        while self
-            .curr_comb_held
-            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-            .is_err()
-        {
-            backoff.snooze();
-        }
-
         let mut curr_comb_queue = self.comb_list_head.lock().unwrap();
         //profiler.end(tid);
         curr_comb_queue.push_front(cn);
         //  Mutex is unlocked at end of scope
-
-        self.curr_comb_held.store(false, Ordering::Relaxed);
     }
 
     fn wait_until_fulfilled(&self, shared_comb_node: Arc<CombiningNode>, tid: i32) {
