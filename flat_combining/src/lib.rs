@@ -4,6 +4,7 @@
 #![allow(unused_imports)]
 
 use crossbeam_utils::thread;
+use crossbeam_queue::MsQueue;
 use std::sync::Arc;
 mod fcqueue;
 use fcqueue::FCQueue;
@@ -304,6 +305,83 @@ mod par {
             }
         })
         .unwrap();
+    }
+    #[test]
+    fn msqueue_enqueue(){
+    	let queue = MsQueue::new();
+
+        thread::scope(|s| {
+            let shared_queue = Arc::new(&queue);
+            for i in 0..NUM_THREADS {
+                let cloned_shared_queue = Arc::clone(&shared_queue);
+                s.spawn(move |_| {
+                    let mut profiler =
+                        Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+                    profiler.start(i);
+
+                    for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
+                        cloned_shared_queue.push(elem, i);
+                    }
+
+                    profiler.end(i);
+                });
+            }
+        })
+        .unwrap();
+
+    }
+    #[test]
+    fn msqueue_dequeue(){
+    	let queue = MsQueue::new();
+
+    	for elem in 0..MANY_ELEMS{
+    		queue.push(elem, 0);
+    	}
+
+        thread::scope(|s| {
+            let shared_queue = Arc::new(&queue);
+            for i in 0..NUM_THREADS {
+                let cloned_shared_queue = Arc::clone(&shared_queue);
+                s.spawn(move |_| {
+                    let mut profiler =
+                        Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+                    profiler.start(i);
+
+                    for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
+                        cloned_shared_queue.pop(elem, i);
+                    }
+
+                    profiler.end(i);
+                });
+            }
+        })
+        .unwrap();
+
+    }
+
+    #[test]
+    fn msqueue_enqueue_dequeue(){
+    	let queue = MsQueue::new();
+        thread::scope(|s| {
+            let shared_queue = Arc::new(&queue);
+            for i in 0..NUM_THREADS {
+                let cloned_shared_queue = Arc::clone(&shared_queue);
+                s.spawn(move |_| {
+                    let mut profiler =
+                        Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+                    profiler.start(i);
+
+                    for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
+                    	cloned_shared_queue.push(elem, i);
+                        cloned_shared_queue.pop(elem, i);
+                    }
+
+                    profiler.end(i);
+                });
+            }
+        })
+        .unwrap();
+
     }
 
     #[test]
