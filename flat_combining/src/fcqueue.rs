@@ -170,7 +170,7 @@ impl FCQueue {
     fn do_flat_combining(&self, tid: i32) {
         /* Debugging */
         let mut do_flat_profiler: Profiler =
-            Profiler::new(None, ProfilerOutput::stdout, "doFlatCombining".to_string());
+            Profiler::new(None, ProfilerOutput::stdout, "do_flat_combining".to_string());
         do_flat_profiler.start(tid);
         /**/
 
@@ -428,7 +428,7 @@ impl FCQueue {
                     self.fc_lock
                         .compare_exchange(0, 1, Ordering::Acquire, Ordering::Relaxed);
                 if cae.is_ok() {
-                    self.doFlatCombining(tid);
+                    self.do_flat_combining(tid);
                     self.fc_lock.store(0, Ordering::Relaxed);
                 }
 
