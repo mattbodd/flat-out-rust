@@ -167,8 +167,7 @@ impl FCQueue {
         }
     }
 
-    #[allow(non_snake_case)]
-    fn doFlatCombining(&self, tid: i32) {
+    fn do_flat_combining(&self, tid: i32) {
         /* Debugging */
         let mut do_flat_profiler: Profiler =
             Profiler::new(None, ProfilerOutput::stdout, "doFlatCombining".to_string());
@@ -178,11 +177,6 @@ impl FCQueue {
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize;
         let mut curr_comb_node: VecDeque<Arc<CombiningNode>>;
-        /*
-        {
-            curr_comb_node = VecDeque::new(); //self.comb_list_head.lock().unwrap().clone();
-        }
-         */
 
         self.current_timestamp.fetch_add(1, Ordering::Relaxed);
         let local_current_timestamp: u64 = self.current_timestamp.load(Ordering::Relaxed);
@@ -212,10 +206,6 @@ impl FCQueue {
             curr_comb_profiler.start(tid);
             */
             {
-                //let mut unlocked = self.comb_list_head.lock().unwrap();
-                //curr_comb_node = unlocked.clone();
-                //unlocked.clear();
-                //self.comb_list_head.lock().unwrap().clear();
                 curr_comb_node = self.comb_list_head.lock().unwrap().drain(..).collect();
             }
 
@@ -245,8 +235,6 @@ impl FCQueue {
                     .is_request_valid
                     .load(Ordering::Relaxed)
                 {
-                    // Unsure if `as_ref` gives us a reference that can actually
-                    // be compared with `curr_comb_node.front().unwrap()`
                     if check_timestamps
                         && (!Arc::ptr_eq(
                             &curr_comb_node.front().unwrap(),
@@ -374,7 +362,6 @@ impl FCQueue {
 
             if num_pushed_items > 0 {
                 let mut new_node: QueueFatNode = QueueFatNode::new();
-
                 // No more than MAX_THREADS items can be in combined_pushed_items
                 // at a time
                 assert!(num_pushed_items < MAX_THREADS);
@@ -427,8 +414,6 @@ impl FCQueue {
         /**/
         profiler.start(tid);
         let mut rounds = 0;
-
-        //let shared_comb_node: Arc<CombiningNode> = Arc::new(comb_node);
 
         loop {
             if (rounds % NUM_ROUNDS_IS_LINKED_CHECK_FREQUENCY == 0)
