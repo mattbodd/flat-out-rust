@@ -168,11 +168,11 @@ impl FCQueue {
     }
 
     fn do_flat_combining(&self, tid: i32) {
-        /* Debugging */
+        /* Debugging
         let mut do_flat_profiler: Profiler =
             Profiler::new(None, ProfilerOutput::stdout, "do_flat_combining".to_string());
         do_flat_profiler.start(tid);
-        /**/
+        */
 
         let mut combining_round: u64 = 0;
         let mut num_pushed_items: usize;
@@ -380,39 +380,39 @@ impl FCQueue {
             combining_round += 1;
             if !have_work || combining_round >= MAX_COMBINING_ROUNDS {
                 // Debugging
-                do_flat_profiler.end(tid);
+                //do_flat_profiler.end(tid);
                 return;
             }
         }
     }
 
     fn link_in_combining(&self, cn: Arc<CombiningNode>, tid: i32) {
-        /* Debugging */
+        /* Debugging
         let mut profiler: Profiler = Profiler::new(
             None,
             ProfilerOutput::stdout,
             "link_in_combining".to_string(),
         );
-        /**/
+        */
 
         // Block until we have access to the global `comb_list_head` at which point
         // we merge our thread local queue
-        profiler.start(tid);
+        //profiler.start(tid);
         let mut curr_comb_queue = self.comb_list_head.lock().unwrap();
         curr_comb_queue.push_front(cn);
         //  Mutex is unlocked at end of scope
-        profiler.end(tid);
+        //profiler.end(tid);
     }
 
     fn wait_until_fulfilled(&self, shared_comb_node: Arc<CombiningNode>, tid: i32) {
-        /* Debugging */
+        /* Debugging
         let mut profiler: Profiler = Profiler::new(
             None,
             ProfilerOutput::stdout,
             "wait_until_fulfilled".to_string(),
         );
-        /**/
-        profiler.start(tid);
+        */
+        //profiler.start(tid);
         let mut rounds = 0;
 
         loop {
@@ -439,7 +439,7 @@ impl FCQueue {
                 rounds += 1;
             }
         }
-        profiler.end(tid);
+        //profiler.end(tid);
     }
 
     pub fn enqueue(&self, val: i32, tid: i32) -> bool {
