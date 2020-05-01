@@ -149,6 +149,24 @@ pub mod seq {
     }
 
     #[test]
+    fn stress_dequeue() {
+        let queue = FCQueue::new();
+
+        for elem in 0..MANY_ELEMS {
+            queue.enqueue(elem, 0);
+        }
+
+        let mut profiler = Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+        profiler.start(0);
+
+        for elem in 0..MANY_ELEMS {
+            cloned_shared_queue.dequeue(i);
+        }
+
+        profiler.end(0);
+    }
+
+    #[test]
     fn flush() {
         let queue = FCQueue::new();
 
