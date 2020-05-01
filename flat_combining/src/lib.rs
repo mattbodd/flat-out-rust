@@ -160,7 +160,7 @@ pub mod seq {
         profiler.start(0);
 
         for elem in 0..MANY_ELEMS {
-            cloned_shared_queue.dequeue(i);
+            queue.dequeue(i);
         }
 
         profiler.end(0);
