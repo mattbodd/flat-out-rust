@@ -169,12 +169,11 @@ pub mod seq {
     #[test]
     fn stress_enqueue_dequeue() {
         let queue = FCQueue::new();
-        Profiling
-        let mut profiler =
+        let mut profiler: Profiler =
             Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
         profiler.start(0);
 
-        for elem in 0..MANY_ELEMS{
+        for elem in 0..MANY_ELEMS {
             queue.enqueue(elem, 0);
             queue.dequeue(0);
         }
