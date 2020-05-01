@@ -293,6 +293,22 @@ pub mod seq {
         // Overreaching!
         queue.dequeue(0);
     }
+
+    #[test]
+    fn ms_queue_enqueue_dequeue() {
+        let queue = MsQueue::new();
+
+        let mut profiler =
+            Profiler::new(None, ProfilerOutput::stdout, "ms_queue_enq_deq".to_string());
+        profiler.start(0);
+
+        for elem in 0..MANY_ELEMS {
+            queue.push(elem);
+            queue.pop();
+        }
+
+        profiler.end(0);
+    }
 }
 
 mod par {
