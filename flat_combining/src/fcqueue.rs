@@ -404,7 +404,7 @@ impl FCQueue {
         let mut profiler: Profiler = Profiler::new(
             None,
             ProfilerOutput::stdout,
-            "link_in_combining_lock".to_string(),
+            "link_in_combining".to_string(),
         );
         /**/
 
@@ -422,7 +422,7 @@ impl FCQueue {
         let mut profiler: Profiler = Profiler::new(
             None,
             ProfilerOutput::stdout,
-            "link_in_combining_lock".to_string(),
+            "wait_until_fulfilled".to_string(),
         );
         /**/
         profiler.start(tid);
