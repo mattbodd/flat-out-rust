@@ -412,7 +412,7 @@ mod par {
     }
 
     #[test]
-    fn ms_enqueue_dequeue() {
+    fn ms_queue_enqueue_dequeue() {
         let queue = MsQueue::new();
         thread::scope(|s| {
             let shared_queue = Arc::new(&queue);
@@ -420,7 +420,7 @@ mod par {
                 let cloned_shared_queue = Arc::clone(&shared_queue);
                 s.spawn(move |_| {
                     let mut profiler =
-                        Profiler::new(None, ProfilerOutput::stdout, "total".to_string());
+                        Profiler::new(None, ProfilerOutput::stdout, "ms_queue_enq_deq".to_string());
                     profiler.start(i);
 
                     for elem in (i * MANY_ELEMS_PER_THREAD)..((i + 1) * MANY_ELEMS_PER_THREAD) {
